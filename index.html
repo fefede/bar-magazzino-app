@@ -7,11 +7,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4">
 
-  <div id="app" class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-6 border border-slate-700 text-center">
-    <h1 class="text-2xl font-bold text-amber-400 mb-2">Bar Magazzino</h1>
-    <p class="text-sm text-slate-400 mb-6">Gestione scorte e ordini fornitori</p>
+  <div id="app" class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-5 border border-slate-700 text-center my-auto">
+    <h1 class="text-2xl font-bold text-amber-400 mb-1">Bar Magazzino</h1>
+    <p class="text-xs text-slate-400 mb-5">Gestione scorte e ordini fornitori</p>
 
     <!-- Schermata Caricamento -->
     <div id="view-loading" class="py-8">
@@ -21,7 +21,7 @@
 
     <!-- Schermata Login -->
     <div id="view-login" class="hidden py-4">
-      <p class="text-sm text-slate-300 mb-6">Accedi con il tuo account Google per iniziare la checklist.</p>
+      <p class="text-sm text-slate-300 mb-6">Accedi con Google per iniziare il turno.</p>
       <button id="btn-login" class="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-xl shadow transition flex items-center justify-center gap-3 active:scale-95">
         <svg class="w-5 h-5" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -37,27 +37,38 @@
     <div id="view-pending" class="hidden py-4 text-center">
       <div class="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-4 text-xl">⏳</div>
       <h2 class="text-lg font-bold text-amber-400 mb-2">In attesa di approvazione</h2>
-      <p class="text-sm text-slate-300 mb-6">Il tuo account è stato registrato ma deve essere approvato dall'amministratore prima di poter accedere.</p>
+      <p class="text-sm text-slate-300 mb-6">Il tuo account è registrato ma deve essere abilitato da un amministratore.</p>
       <button id="btn-logout-pending" class="py-2 px-4 bg-slate-700 hover:bg-slate-600 text-sm rounded-lg transition">Disconnetti</button>
     </div>
 
-    <!-- Schermata Principale Approvato -->
-    <div id="view-main" class="hidden py-2 text-left">
-      <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+    <!-- Schermata Principale Utente Autorizzato -->
+    <div id="view-main" class="hidden text-left space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
         <div>
-          <span class="text-xs text-slate-400 block">Connesso come:</span>
-          <span id="user-email" class="text-sm font-semibold text-emerald-400"></span>
+          <span class="text-xs text-slate-400 block">Operatore:</span>
+          <div class="flex items-center gap-1.5">
+            <span id="user-email" class="text-xs font-semibold text-emerald-400"></span>
+            <span id="user-badge" class="hidden text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">ADMIN</span>
+          </div>
         </div>
         <button id="btn-logout" class="text-xs text-slate-400 hover:text-rose-400 py-1 px-2 border border-slate-700 rounded transition">Esci</button>
       </div>
 
-      <div class="bg-slate-700/50 p-4 rounded-xl border border-slate-600 mb-4 text-center">
-        <p class="text-emerald-400 font-semibold mb-1">Accesso autorizzato</p>
-        <p class="text-xs text-slate-300">Collegamento a Supabase completato con successo.</p>
+      <!-- Sezione Azioni Inventario -->
+      <div class="bg-slate-700/40 p-4 rounded-xl border border-slate-600">
+        <h3 class="text-sm font-semibold text-white mb-2">Operazioni Scorte</h3>
+        <p class="text-xs text-slate-400 mb-3">Inserisci i conteggi di fine turno o compila l'ordine.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition active:scale-95">Checklist Conteggio</button>
+          <button class="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition active:scale-95">Riepilogo Ordine</button>
+        </div>
       </div>
 
-      <div class="text-center">
-        <p class="text-xs text-slate-500">Pronto per il modulo inventario e conteggio rapido.</p>
+      <!-- Pulsante Navigazione Pagina Admin (visibile solo a is_admin = true) -->
+      <div id="admin-panel" class="hidden pt-1">
+        <a href="admin.html" class="block w-full text-center py-2.5 px-3 bg-slate-950/60 hover:bg-slate-950 border border-amber-500/40 text-amber-400 text-xs font-bold rounded-xl transition active:scale-95">
+          ⚙ Gestione Utenze (admin.html) →
+        </a>
       </div>
     </div>
   </div>
@@ -66,7 +77,6 @@
     const SUPABASE_URL = 'https://wwtzkltjhllbclygwfqr.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
 
-    // Utilizziamo window.supabase.createClient rinominando la variabile locale per evitare collisioni
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const viewLoading = document.getElementById('view-loading');
@@ -74,6 +84,8 @@
     const viewPending = document.getElementById('view-pending');
     const viewMain = document.getElementById('view-main');
     const userEmailSpan = document.getElementById('user-email');
+    const userBadge = document.getElementById('user-badge');
+    const adminPanel = document.getElementById('admin-panel');
 
     function switchView(view) {
       viewLoading.classList.add('hidden');
@@ -97,17 +109,23 @@
 
         const { data: profile, error } = await supabaseClient
           .from('profiles')
-          .select('is_approved')
+          .select('is_approved, is_admin')
           .eq('id', userId)
           .single();
 
         if (error || !profile || !profile.is_approved) {
           switchView(viewPending);
-        } else {
-          switchView(viewMain);
+          return;
+        }
+
+        switchView(viewMain);
+
+        if (profile.is_admin) {
+          userBadge.classList.remove('hidden');
+          adminPanel.classList.remove('hidden');
         }
       } catch (err) {
-        console.error('Errore durante il controllo sessione:', err);
+        console.error('Errore sessione:', err);
         switchView(viewLogin);
       }
     }
@@ -115,9 +133,7 @@
     document.getElementById('btn-login').addEventListener('click', async () => {
       await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
+        options: { redirectTo: window.location.origin }
       });
     });
 
