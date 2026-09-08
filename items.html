@@ -10,7 +10,6 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4">
 
   <div class="w-full max-w-lg bg-slate-800 rounded-2xl shadow-xl p-5 border border-slate-700 my-auto">
-    <!-- Intestazione -->
     <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
       <div>
         <h1 class="text-lg font-bold text-amber-400">Catalogo Articoli</h1>
@@ -19,14 +18,14 @@
       <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600 transition">← Torna all'App</a>
     </div>
 
-    <!-- Stato Caricamento -->
+    <!-- Caricamento -->
     <div id="status-loading" class="py-8 text-center text-sm text-slate-400">
       <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
       <p>Caricamento catalogo...</p>
     </div>
 
     <div id="main-content" class="hidden space-y-5">
-      <!-- Modulo Inserimento / Modifica (Nascosto di default, visibile solo agli Admin) -->
+      <!-- Form Inserimento / Modifica (Solo Admin) -->
       <form id="form-item" class="hidden bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-3 text-xs">
         <div class="flex items-center justify-between">
           <h2 id="form-title" class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">+ Nuovo Articolo</h2>
@@ -37,55 +36,73 @@
 
         <div>
           <label class="block text-slate-400 mb-1">Nome Articolo *</label>
-          <input type="text" id="input-name" required placeholder="Es. Gin Tanqueray 1L" class="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          <input type="text" id="input-name" required placeholder="Es. Gin Tanqueray, Coca Cola, Heineken" class="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
         </div>
 
         <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-slate-400 mb-1">Fornitore</label>
-            <select id="input-supplier" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
-              <option value="">Nessun fornitore</option>
-            </select>
-          </div>
           <div>
             <label class="block text-slate-400 mb-1">Categoria</label>
             <select id="input-category" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
               <option value="Alcolici">Alcolici & Liquori</option>
               <option value="Birre">Birre & Fusti</option>
               <option value="Bibite">Bibite & Analcolici</option>
+              <option value="Vini">Vini & Bollicine</option>
               <option value="Caffetteria">Caffetteria</option>
               <option value="Monouso">Monouso & Consumabili</option>
               <option value="Altro">Altro</option>
             </select>
           </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2">
           <div>
-            <label class="block text-slate-400 mb-1">Unità</label>
+            <label class="block text-slate-400 mb-1">Tipo Contenitore</label>
             <select id="input-unit" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
               <option value="bottiglia">Bottiglia</option>
               <option value="fusto">Fusto</option>
               <option value="lattina">Lattina</option>
-              <option value="cartone">Cartone</option>
-              <option value="kg">Kg</option>
+              <option value="cartone">Cartone / Box</option>
+              <option value="sacchetto">Sacchetto</option>
               <option value="pezzi">Pezzi</option>
             </select>
           </div>
+        </div>
+
+        <!-- Formato Contenuto: Valore + Unità -->
+        <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-slate-400 mb-1">Pezzi/Cartone</label>
+            <label class="block text-slate-400 mb-1">Contenuto / Formato</label>
+            <input type="number" step="any" id="input-format-val" placeholder="Es. 33, 70, 1, 30" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Unità di Misura</label>
+            <select id="input-format-unit" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
+              <option value="cl">cl (Centilitri)</option>
+              <option value="L">L (Litri)</option>
+              <option value="ml">ml (Millilitri)</option>
+              <option value="kg">kg (Chilogrammi)</option>
+              <option value="g">g (Grammi)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Parametri Scorta & Confezionamento -->
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block text-slate-400 mb-1">Pz./Cassa</label>
             <input type="number" id="input-pack" min="1" value="1" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
           </div>
           <div>
-            <label class="block text-slate-400 mb-1">Scorta Minima</label>
+            <label class="block text-slate-400 mb-1">Scorta Min.</label>
             <input type="number" id="input-min" min="0" value="2" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Scorta Obiet.</label>
+            <input type="number" id="input-target" min="0" value="6" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
           </div>
         </div>
 
         <button type="submit" id="btn-submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition active:scale-95">Salva Articolo</button>
       </form>
 
-      <!-- Elenco Articoli Consultabile da Tutti gli Utenti Approvati -->
+      <!-- Elenco Articoli -->
       <div class="space-y-2">
         <div class="flex items-center justify-between text-xs text-slate-400 px-1">
           <span id="items-count">Articoli registrati: 0</span>
@@ -110,17 +127,18 @@
     const formTitle = document.getElementById('form-title');
     const btnCancelEdit = document.getElementById('btn-cancel-edit');
     const btnSubmit = document.getElementById('btn-submit');
-    const inputSupplier = document.getElementById('input-supplier');
 
     const itemId = document.getElementById('item-id');
     const inputName = document.getElementById('input-name');
     const inputCategory = document.getElementById('input-category');
     const inputUnit = document.getElementById('input-unit');
+    const inputFormatVal = document.getElementById('input-format-val');
+    const inputFormatUnit = document.getElementById('input-format-unit');
     const inputPack = document.getElementById('input-pack');
     const inputMin = document.getElementById('input-min');
+    const inputTarget = document.getElementById('input-target');
 
     let itemsData = [];
-    let suppliersData = [];
     let isUserAdmin = false;
 
     async function init() {
@@ -138,14 +156,12 @@
           .single();
 
         if (error || !profile || !profile.is_approved) {
-          alert('Accesso negato: utenza non abilitata.');
+          alert('Accesso negato.');
           window.location.href = 'index.html';
           return;
         }
 
         isUserAdmin = !!profile.is_admin;
-
-        // Se è admin mostriamo il form di modifica/inserimento
         if (isUserAdmin) {
           roleSubtitle.textContent = 'Gestione anagrafica (Privilegi Admin)';
           formItem.classList.remove('hidden');
@@ -153,33 +169,26 @@
           roleSubtitle.textContent = 'Consultazione catalogo scorte';
         }
 
-        await loadSuppliersDropdown();
         await loadItems();
 
         statusLoading.classList.add('hidden');
         mainContent.classList.remove('hidden');
       } catch (err) {
-        console.error('Errore inizializzazione:', err);
+        console.error(err);
         window.location.href = 'index.html';
       }
     }
 
-    async function loadSuppliersDropdown() {
-      const { data } = await supabaseClient.from('suppliers').select('id, name').order('name');
-      suppliersData = data || [];
-      inputSupplier.innerHTML = '<option value="">Nessun fornitore</option>' + 
-        suppliersData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    }
-
     async function loadItems() {
+      // Query diretta senza join relazionali
       const { data, error } = await supabaseClient
         .from('items')
-        .select('*, suppliers(name)')
+        .select('*')
         .order('category', { ascending: true })
         .order('name', { ascending: true });
 
       if (error) {
-        itemsList.innerHTML = `<p class="text-rose-400 p-2">Errore caricamento: ${error.message}</p>`;
+        itemsList.innerHTML = `<p class="text-rose-400 p-2">Errore: ${error.message}</p>`;
         return;
       }
 
@@ -191,21 +200,23 @@
         return;
       }
 
-      itemsList.innerHTML = itemsData.map(item => `
+      itemsList.innerHTML = itemsData.map(item => {
+        const formatLabel = item.format_value ? `${item.format_value} ${item.format_unit}` : '';
+        return `
         <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between gap-2">
           <div class="truncate">
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5 flex-wrap">
               <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300/80 border border-slate-700">${item.category}</span>
+              ${formatLabel ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono font-bold rounded border border-amber-500/20">${formatLabel}</span>` : ''}
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${item.category}</span>
             </div>
-            <p class="text-[11px] text-slate-400 mt-0.5">
-              Fornitore: <span class="text-slate-300">${item.suppliers ? item.suppliers.name : 'Non assegnato'}</span> • 
-              Minimo scorta: <span class="text-amber-400 font-mono font-bold">${item.min_stock}</span> ${item.unit_type}
-              ${item.units_per_pack > 1 ? `(${item.units_per_pack} per cassa)` : ''}
+            <p class="text-[11px] text-slate-400 mt-1">
+              Scorta Min: <span class="text-amber-400 font-mono font-bold">${item.min_stock}</span> • 
+              Obiettivo: <span class="text-emerald-400 font-mono font-bold">${item.target_stock}</span> ${item.unit_type}
+              ${item.units_per_pack > 1 ? `(${item.units_per_pack}/cassa)` : ''}
             </p>
           </div>
 
-          <!-- Pulsanti visibili unicamente agli Amministratori -->
           ${isUserAdmin ? `
             <div class="flex items-center gap-1 shrink-0">
               <button onclick="startEdit('${item.id}')" class="px-2 py-1 rounded bg-slate-800 text-amber-400 border border-slate-700 hover:bg-slate-700">Modifica</button>
@@ -213,7 +224,7 @@
             </div>
           ` : ''}
         </div>
-      `).join('');
+      `}).join('');
     }
 
     formItem.addEventListener('submit', async (e) => {
@@ -223,11 +234,13 @@
 
       const payload = {
         name: inputName.value.trim(),
-        supplier_id: inputSupplier.value || null,
         category: inputCategory.value,
         unit_type: inputUnit.value,
+        format_value: inputFormatVal.value ? parseFloat(inputFormatVal.value) : null,
+        format_unit: inputFormatUnit.value,
         units_per_pack: parseInt(inputPack.value, 10) || 1,
-        min_stock: parseInt(inputMin.value, 10) || 0
+        min_stock: parseInt(inputMin.value, 10) || 0,
+        target_stock: parseInt(inputTarget.value, 10) || 0
       };
 
       const id = itemId.value;
@@ -252,11 +265,13 @@
 
       itemId.value = item.id;
       inputName.value = item.name;
-      inputSupplier.value = item.supplier_id || '';
       inputCategory.value = item.category;
       inputUnit.value = item.unit_type;
+      inputFormatVal.value = item.format_value || '';
+      inputFormatUnit.value = item.format_unit || 'cl';
       inputPack.value = item.units_per_pack || 1;
       inputMin.value = item.min_stock;
+      inputTarget.value = item.target_stock || 0;
 
       formTitle.textContent = 'Modifica Articolo';
       btnSubmit.textContent = 'Aggiorna Articolo';
