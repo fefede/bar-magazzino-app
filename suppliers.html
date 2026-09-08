@@ -14,12 +14,12 @@
     <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
       <div>
         <h1 class="text-lg font-bold text-amber-400">Anagrafica Fornitori</h1>
-        <p class="text-[11px] text-slate-400">Area riservata amministratori</p>
+        <p id="role-subtitle" class="text-[11px] text-slate-400">Consultazione contatti</p>
       </div>
       <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600 transition">← Torna all'App</a>
     </div>
 
-    <!-- Stato Caricamento / Controllo Ruoli -->
+    <!-- Stato Caricamento -->
     <div id="status-loading" class="py-8 text-center text-sm text-slate-400">
       <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
       <p>Verifica autorizzazioni...</p>
@@ -27,8 +27,8 @@
 
     <!-- Sezione Principale -->
     <div id="main-content" class="hidden space-y-5">
-      <!-- Form Aggiunta/Modifica Fornitore -->
-      <form id="form-supplier" class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-3 text-xs">
+      <!-- Form Aggiunta/Modifica Fornitore (Visibile solo agli ADMIN) -->
+      <form id="form-supplier" class="hidden bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-3 text-xs">
         <div class="flex items-center justify-between">
           <h2 id="form-title" class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">+ Nuovo Fornitore</h2>
           <button type="button" id="btn-cancel-edit" class="hidden text-slate-400 hover:text-rose-400">Annulla modifica</button>
@@ -94,6 +94,7 @@
 
     const statusLoading = document.getElementById('status-loading');
     const mainContent = document.getElementById('main-content');
+    const roleSubtitle = document.getElementById('role-subtitle');
     const suppliersList = document.getElementById('suppliers-list');
     const suppliersCount = document.getElementById('suppliers-count');
     const formSupplier = document.getElementById('form-supplier');
@@ -101,7 +102,6 @@
     const btnCancelEdit = document.getElementById('btn-cancel-edit');
     const btnSubmit = document.getElementById('btn-submit');
 
-    // Input fields
     const supplierId = document.getElementById('supplier-id');
     const inputName = document.getElementById('input-name');
     const inputReferent = document.getElementById('input-referent');
@@ -111,8 +111,9 @@
     const inputNotes = document.getElementById('input-notes');
 
     let suppliersData = [];
+    let isUserAdmin = false;
 
-    async function checkAdminAccess() {
+    async function checkUserAccess() {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) {
@@ -126,10 +127,19 @@
           .eq('id', session.user.id)
           .single();
 
-        if (error || !profile || !profile.is_admin || !profile.is_approved) {
-          alert('Accesso negato: pagina riservata agli amministratori.');
+        if (error || !profile || !profile.is_approved) {
+          alert('Accesso negato: utenza non abilitata.');
           window.location.href = 'index.html';
           return;
+        }
+
+        isUserAdmin = !!profile.is_admin;
+
+        if (isUserAdmin) {
+          roleSubtitle.textContent = 'Gestione anagrafica (Privilegi Admin)';
+          formSupplier.classList.remove('hidden');
+        } else {
+          roleSubtitle.textContent = 'Elenco contatti fornitori';
         }
 
         statusLoading.classList.add('hidden');
@@ -156,11 +166,13 @@
       suppliersCount.textContent = `Fornitori registrati: ${suppliersData.length}`;
 
       if (suppliersData.length === 0) {
-        suppliersList.innerHTML = '<p class="text-slate-500 text-center py-4">Nessun fornitore registrato. Aggiungine uno con il modulo sopra.</p>';
+        suppliersList.innerHTML = '<p class="text-slate-500 text-center py-4">Nessun fornitore registrato.</p>';
         return;
       }
 
-      suppliersList.innerHTML = suppliersData.map(s => `
+      suppliersList.innerHTML = suppliersData.map(s => {
+        const phoneFormatted = (s.phone || '').replace(/[^0-9+]/g, '');
+        return `
         <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-1.5">
           <div class="flex items-start justify-between gap-2">
             <div>
@@ -172,22 +184,24 @@
             </span>
           </div>
 
-          <div class="text-[11px] text-slate-400 space-y-0.5">
-            ${s.phone ? `<p>📞 ${s.phone}</p>` : ''}
-            ${s.email ? `<p>✉️ ${s.email}</p>` : ''}
+          <div class="text-[11px] text-slate-400 space-y-0.5 pt-1">
+            ${s.phone ? `<p>📞 <a href="tel:${phoneFormatted}" class="text-amber-400 hover:underline">${s.phone}</a></p>` : ''}
+            ${s.email ? `<p>✉️ <a href="mailto:${s.email}" class="text-amber-400 hover:underline">${s.email}</a></p>` : ''}
             ${s.notes ? `<p class="text-slate-500 italic mt-1">Note: ${s.notes}</p>` : ''}
           </div>
 
-          <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-            <button onclick="startEdit('${s.id}')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700">
-              Modifica
-            </button>
-            <button onclick="deleteSupplier('${s.id}', '${s.name.replace(/'/g, "\\'")}')" class="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30">
-              Elimina
-            </button>
-          </div>
+          ${isUserAdmin ? `
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button onclick="startEdit('${s.id}')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700">
+                Modifica
+              </button>
+              <button onclick="deleteSupplier('${s.id}', '${s.name.replace(/'/g, "\\'")}')" class="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                Elimina
+              </button>
+            </div>
+          ` : ''}
         </div>
-      `).join('');
+      `}).join('');
     }
 
     formSupplier.addEventListener('submit', async (e) => {
@@ -208,10 +222,8 @@
       let res;
 
       if (id) {
-        // Modifica esistente
         res = await supabaseClient.from('suppliers').update(payload).eq('id', id);
       } else {
-        // Nuovo inserimento
         res = await supabaseClient.from('suppliers').insert([payload]);
       }
 
@@ -270,7 +282,7 @@
     window.startEdit = startEdit;
     window.deleteSupplier = deleteSupplier;
 
-    checkAdminAccess();
+    checkUserAccess();
   </script>
 </body>
 </html>
