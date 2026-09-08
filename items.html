@@ -1,309 +1,333 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Catalogo Articoli - Bar Magazzino</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anagrafica Articoli & Listini - Bar Inventory</title>
+  <!-- Tailwind CSS per styling rapido e moderno -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4">
+<body class="bg-gray-50 text-gray-800 antialiased min-h-screen">
 
-  <div class="w-full max-w-lg bg-slate-800 rounded-2xl shadow-xl p-5 border border-slate-700 my-auto">
-    <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-lg font-bold text-amber-400">Catalogo Articoli</h1>
-        <p id="role-subtitle" class="text-[11px] text-slate-400">Consultazione scorte minime</p>
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900">Catalogo Articoli</h1>
+        <p class="text-sm text-gray-500 mt-1">Gestione articoli di magazzino e confronto listini fornitori</p>
       </div>
-      <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600 transition">← Torna all'App</a>
+      <div class="flex items-center gap-3">
+        <button onclick="loadItems()" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Aggiorna
+        </button>
+      </div>
     </div>
 
-    <!-- Caricamento -->
-    <div id="status-loading" class="py-8 text-center text-sm text-slate-400">
-      <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
-      <p>Caricamento catalogo...</p>
+    <!-- Barra di Ricerca e Filtri -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4">
+      <div class="flex-1">
+        <input 
+          type="text" 
+          id="searchInput" 
+          oninput="renderTable()"
+          placeholder="Cerca per nome articolo..." 
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+      <div class="w-full md:w-64">
+        <select 
+          id="categoryFilter" 
+          onchange="renderTable()"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">Tutte le categorie</option>
+        </select>
+      </div>
     </div>
 
-    <div id="main-content" class="hidden space-y-5">
-      <!-- Form Inserimento / Modifica (Solo Admin) -->
-      <form id="form-item" class="hidden bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-3 text-xs">
-        <div class="flex items-center justify-between">
-          <h2 id="form-title" class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">+ Nuovo Articolo</h2>
-          <button type="button" id="btn-cancel-edit" class="hidden text-slate-400 hover:text-rose-400">Annulla modifica</button>
-        </div>
+    <!-- Tabella Articoli -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-100/75 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th class="py-3 px-4">Articolo</th>
+              <th class="py-3 px-4">Formato</th>
+              <th class="py-3 px-4">Imballo</th>
+              <th class="py-3 px-4">Scorte (Min / Target)</th>
+              <th class="py-3 px-4">Miglior Prezzo</th>
+              <th class="py-3 px-4 text-right">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="itemsTableBody" class="divide-y divide-gray-100 text-sm">
+            <tr>
+              <td colspan="6" class="text-center py-8 text-gray-400">Caricamento articoli in corso...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-        <input type="hidden" id="item-id" value="" />
-
+  <!-- MODAL CONFRONTO FORNITORI -->
+  <div id="supplierModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-4 border-b border-gray-100 mb-4">
         <div>
-          <label class="block text-slate-400 mb-1">Nome Articolo *</label>
-          <input type="text" id="input-name" required placeholder="Es. Gin Tanqueray, Coca Cola, Heineken" class="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          <h3 id="modalTitle" class="text-lg font-bold text-gray-900">Dettaglio Prezzi</h3>
+          <p id="modalSubtitle" class="text-xs text-gray-500"></p>
         </div>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 rounded-lg p-1 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
 
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-slate-400 mb-1">Categoria</label>
-            <select id="input-category" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
-              <option value="Alcolici">Alcolici & Liquori</option>
-              <option value="Birre">Birre & Fusti</option>
-              <option value="Bibite">Bibite & Analcolici</option>
-              <option value="Vini">Vini & Bollicine</option>
-              <option value="Caffetteria">Caffetteria</option>
-              <option value="Monouso">Monouso & Consumabili</option>
-              <option value="Altro">Altro</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Tipo Contenitore</label>
-            <select id="input-unit" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
-              <option value="Bottiglia Vetro">Bottiglia Vetro</option>
-              <option value="Bottiglia PET">Bottiglia PET</option>
-              <option value="Lattina">Lattina</option>
-              <option value="Fusto">Fusto</option>
-              <option value="Cartone / Bag-in-Box">Cartone / Bag-in-Box</option>
-              <option value="Busta / Sacchetto">Busta / Sacchetto</option>
-              <option value="Pezzi / Confezione">Pezzi / Confezione</option>
-            </select>          
-          </div>
-        </div>
+      <div id="modalContent" class="overflow-x-auto">
+        <!-- Tabella Listini Iniettata via JS -->
+      </div>
 
-        <!-- Formato Contenuto: Valore + Unità -->
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-slate-400 mb-1">Contenuto / Formato</label>
-            <input type="number" step="any" id="input-format-val" placeholder="Es. 33, 70, 1, 30" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Unità di Misura</label>
-            <select id="input-format-unit" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
-              <option value="cl">cl (Centilitri)</option>
-              <option value="L">L (Litri)</option>
-              <option value="ml">ml (Millilitri)</option>
-              <option value="kg">kg (Chilogrammi)</option>
-              <option value="g">g (Grammi)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Parametri Scorta & Confezionamento -->
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="block text-slate-400 mb-1">Pz./Cassa</label>
-            <input type="number" id="input-pack" min="1" value="1" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Scorta Min.</label>
-            <input type="number" id="input-min" min="0" value="2" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Scorta Obiet.</label>
-            <input type="number" id="input-target" min="0" value="6" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
-          </div>
-        </div>
-
-        <button type="submit" id="btn-submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition active:scale-95">Salva Articolo</button>
-      </form>
-
-      <!-- Elenco Articoli -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between text-xs text-slate-400 px-1">
-          <span id="items-count">Articoli registrati: 0</span>
-          <button id="btn-refresh" class="text-amber-400 hover:text-amber-300 font-medium">Aggiorna ↻</button>
-        </div>
-        <div id="items-list" class="space-y-2 text-xs"></div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm rounded-lg transition">
+          Chiudi
+        </button>
       </div>
     </div>
   </div>
 
   <script>
-    const SUPABASE_URL = 'https://wwtzkltjhllbclygwfqr.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // INSERISCI QUI LE TUE CHIAVI SE DIVERSE DAL CONFIG GLOBALE
+    const SUPABASE_URL = window.SUPABASE_URL || 'INSERISCI_TUO_URL_SUPABASE';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'INSERISCI_TUA_ANON_KEY';
+    
+    // Inizializzazione Client Supabase
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const statusLoading = document.getElementById('status-loading');
-    const mainContent = document.getElementById('main-content');
-    const roleSubtitle = document.getElementById('role-subtitle');
-    const itemsList = document.getElementById('items-list');
-    const itemsCount = document.getElementById('items-count');
-    const formItem = document.getElementById('form-item');
-    const formTitle = document.getElementById('form-title');
-    const btnCancelEdit = document.getElementById('btn-cancel-edit');
-    const btnSubmit = document.getElementById('btn-submit');
+    let allItems = [];
 
-    const itemId = document.getElementById('item-id');
-    const inputName = document.getElementById('input-name');
-    const inputCategory = document.getElementById('input-category');
-    const inputUnit = document.getElementById('input-unit');
-    const inputFormatVal = document.getElementById('input-format-val');
-    const inputFormatUnit = document.getElementById('input-format-unit');
-    const inputPack = document.getElementById('input-pack');
-    const inputMin = document.getElementById('input-min');
-    const inputTarget = document.getElementById('input-target');
-
-    let itemsData = [];
-    let isUserAdmin = false;
-
-    async function init() {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) { 
-          window.location.href = 'index.html'; 
-          return; 
-        }
-
-        const { data: profile, error } = await supabaseClient
-          .from('profiles')
-          .select('is_admin, is_approved')
-          .eq('id', session.user.id)
-          .single();
-
-        if (error || !profile || !profile.is_approved) {
-          alert('Accesso negato.');
-          window.location.href = 'index.html';
-          return;
-        }
-
-        isUserAdmin = !!profile.is_admin;
-        if (isUserAdmin) {
-          roleSubtitle.textContent = 'Gestione anagrafica (Privilegi Admin)';
-          formItem.classList.remove('hidden');
-        } else {
-          roleSubtitle.textContent = 'Consultazione catalogo scorte';
-        }
-
-        await loadItems();
-
-        statusLoading.classList.add('hidden');
-        mainContent.classList.remove('hidden');
-      } catch (err) {
-        console.error(err);
-        window.location.href = 'index.html';
-      }
-    }
-
+    // 1. Caricamento Dati con Join Relazionale Completa
     async function loadItems() {
-      // Query diretta senza join relazionali
-      const { data, error } = await supabaseClient
-        .from('items')
-        .select('*')
-        .order('category', { ascending: true })
-        .order('name', { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select(`
+            id,
+            name,
+            category,
+            unit_type,
+            format_value,
+            format_unit,
+            units_per_pack,
+            min_stock,
+            target_stock,
+            is_active,
+            item_suppliers (
+              id,
+              supplier_sku,
+              price_single,
+              price_box,
+              vat_rate,
+              is_preferred,
+              suppliers (
+                id,
+                name
+              )
+            )
+          `)
+          .eq('is_active', true)
+          .order('name');
 
-      if (error) {
-        itemsList.innerHTML = `<p class="text-rose-400 p-2">Errore: ${error.message}</p>`;
-        return;
+        if (error) throw error;
+
+        allItems = data || [];
+        populateCategories();
+        renderTable();
+      } catch (err) {
+        console.error('Errore nel caricamento:', err);
+        document.getElementById('itemsTableBody').innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-6 text-red-500 font-medium">
+              Errore nel caricamento dei dati: ${err.message}
+            </td>
+          </tr>
+        `;
       }
-
-      itemsData = data || [];
-      itemsCount.textContent = `Articoli registrati: ${itemsData.length}`;
-
-      if (itemsData.length === 0) {
-        itemsList.innerHTML = '<p class="text-slate-500 text-center py-4">Nessun articolo registrato nel catalogo.</p>';
-        return;
-      }
-
-      itemsList.innerHTML = itemsData.map(item => {
-        const formatLabel = item.format_value ? `${item.format_value} ${item.format_unit}` : '';
-        return `
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between gap-2">
-          <div class="truncate">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
-              ${formatLabel ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono font-bold rounded border border-amber-500/20">${formatLabel}</span>` : ''}
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${item.category}</span>
-            </div>
-            <p class="text-[11px] text-slate-400 mt-1">
-              Scorta Min: <span class="text-amber-400 font-mono font-bold">${item.min_stock}</span> • 
-              Obiettivo: <span class="text-emerald-400 font-mono font-bold">${item.target_stock}</span> ${item.unit_type}
-              ${item.units_per_pack > 1 ? `(${item.units_per_pack}/cassa)` : ''}
-            </p>
-          </div>
-
-          ${isUserAdmin ? `
-            <div class="flex items-center gap-1 shrink-0">
-              <button onclick="startEdit('${item.id}')" class="px-2 py-1 rounded bg-slate-800 text-amber-400 border border-slate-700 hover:bg-slate-700">Modifica</button>
-              <button onclick="deleteItem('${item.id}', '${item.name.replace(/'/g, "\\'")}')" class="px-2 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20">Elimina</button>
-            </div>
-          ` : ''}
-        </div>
-      `}).join('');
     }
 
-    formItem.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      btnSubmit.disabled = true;
-      btnSubmit.textContent = 'Salvataggio...';
+    // 2. Calcolo del Fornitore più Economico per l'Articolo
+    function calculateBestPrice(itemSuppliers) {
+      if (!itemSuppliers || itemSuppliers.length === 0) return null;
 
-      const payload = {
-        name: inputName.value.trim(),
-        category: inputCategory.value,
-        unit_type: inputUnit.value,
-        format_value: inputFormatVal.value ? parseFloat(inputFormatVal.value) : null,
-        format_unit: inputFormatUnit.value,
-        units_per_pack: parseInt(inputPack.value, 10) || 1,
-        min_stock: parseInt(inputMin.value, 10) || 0,
-        target_stock: parseInt(inputTarget.value, 10) || 0
+      // Considera solo listini con prezzo singolo valido
+      const valid = itemSuppliers.filter(s => s.price_single && Number(s.price_single) > 0);
+      if (valid.length === 0) return null;
+
+      // Trova il record con prezzo unitario minore
+      const best = valid.reduce((min, curr) => 
+        Number(curr.price_single) < Number(min.price_single) ? curr : min
+      );
+
+      return {
+        bestSupplierName: best.suppliers?.name || 'Fornitore',
+        priceSingle: Number(best.price_single),
+        priceBox: best.price_box ? Number(best.price_box) : null,
+        totalSuppliers: valid.length
       };
+    }
 
-      const id = itemId.value;
-      const res = id 
-        ? await supabaseClient.from('items').update(payload).eq('id', id)
-        : await supabaseClient.from('items').insert([payload]);
+    // 3. Render Tabella
+    function renderTable() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const selectedCategory = document.getElementById('categoryFilter').value;
+      const tbody = document.getElementById('itemsTableBody');
 
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = id ? 'Aggiorna Articolo' : 'Salva Articolo';
+      const filtered = allItems.filter(item => {
+        const matchesName = item.name.toLowerCase().includes(search);
+        const matchesCategory = selectedCategory === '' || item.category === selectedCategory;
+        return matchesName && matchesCategory;
+      });
 
-      if (res.error) {
-        alert('Errore salvataggio: ' + res.error.message);
-      } else {
-        resetForm();
-        loadItems();
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-8 text-gray-400">Nessun articolo trovato con i criteri selezionati.</td>
+          </tr>
+        `;
+        return;
       }
-    });
 
-    function startEdit(id) {
-      const item = itemsData.find(i => i.id === id);
+      tbody.innerHTML = filtered.map(item => {
+        const best = calculateBestPrice(item.item_suppliers);
+
+        return `
+          <tr class="hover:bg-gray-50/80 transition cursor-pointer" onclick="openSupplierModal('${item.id}')">
+            <td class="py-3 px-4">
+              <div class="font-semibold text-gray-900">${item.name}</div>
+              <div class="text-xs text-gray-400">${item.category || 'Varie'}</div>
+            </td>
+            <td class="py-3 px-4 text-gray-700">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                ${item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '-'}
+              </span>
+              <span class="text-xs text-gray-400 block mt-0.5">${item.unit_type || ''}</span>
+            </td>
+            <td class="py-3 px-4 text-gray-700">
+              <div class="text-sm font-medium">${item.units_per_pack ? `${item.units_per_pack} pz / cassa` : '1 pz'}</div>
+            </td>
+            <td class="py-3 px-4">
+              <span class="text-xs text-gray-500">Min: <b>${item.min_stock ?? 0}</b> | Target: <b>${item.target_stock ?? 0}</b></span>
+            </td>
+            <td class="py-3 px-4">
+              ${best ? `
+                <div class="inline-flex flex-col">
+                  <div class="text-sm font-bold text-emerald-600">
+                    ${best.priceSingle.toFixed(2)} €
+                    <span class="text-xs font-normal text-gray-500">/ btg</span>
+                  </div>
+                  <div class="text-xs text-gray-500 flex items-center gap-1">
+                    <span>${best.bestSupplierName}</span>
+                    ${best.totalSuppliers > 1 ? `<span class="bg-gray-200 text-gray-700 rounded-full px-1.5 py-0.2 text-[10px] font-semibold">+${best.totalSuppliers - 1}</span>` : ''}
+                  </div>
+                </div>
+              ` : `
+                <span class="text-xs text-gray-400 italic">Nessun prezzo</span>
+              `}
+            </td>
+            <td class="py-3 px-4 text-right" onclick="event.stopPropagation()">
+              <button 
+                onclick="openSupplierModal('${item.id}')" 
+                class="inline-flex items-center px-3 py-1.5 border border-gray-200 text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition shadow-sm"
+              >
+                Vedi Listini (${item.item_suppliers ? item.item_suppliers.length : 0})
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 4. Modal di Confronto Listini Fornitori
+    function openSupplierModal(itemId) {
+      const item = allItems.find(i => i.id === itemId);
       if (!item) return;
 
-      itemId.value = item.id;
-      inputName.value = item.name;
-      inputCategory.value = item.category;
-      inputUnit.value = item.unit_type;
-      inputFormatVal.value = item.format_value || '';
-      inputFormatUnit.value = item.format_unit || 'cl';
-      inputPack.value = item.units_per_pack || 1;
-      inputMin.value = item.min_stock;
-      inputTarget.value = item.target_stock || 0;
+      document.getElementById('modalTitle').textContent = item.name;
+      document.getElementById('modalSubtitle').textContent = `Formato: ${item.format_value || ''} ${item.format_unit || ''} | Cassa da: ${item.units_per_pack || 1} pz`;
 
-      formTitle.textContent = 'Modifica Articolo';
-      btnSubmit.textContent = 'Aggiorna Articolo';
-      btnCancelEdit.classList.remove('hidden');
-      formItem.scrollIntoView({ behavior: 'smooth' });
-    }
+      const suppliers = item.item_suppliers || [];
+      const modalContent = document.getElementById('modalContent');
 
-    function resetForm() {
-      itemId.value = '';
-      formItem.reset();
-      formTitle.textContent = '+ Nuovo Articolo';
-      btnSubmit.textContent = 'Salva Articolo';
-      btnCancelEdit.classList.add('hidden');
-    }
-
-    async function deleteItem(id, name) {
-      if (!confirm(`Sei sicuro di voler eliminare definitivamente "${name}"?`)) return;
-      const { error } = await supabaseClient.from('items').delete().eq('id', id);
-      if (error) {
-        alert('Errore eliminazione: ' + error.message);
+      if (suppliers.length === 0) {
+        modalContent.innerHTML = `
+          <div class="text-center py-8 text-gray-400">
+            Nessun fornitore o prezzo registrato per questo articolo.
+          </div>
+        `;
       } else {
-        loadItems();
+        // Ordina dal prezzo singolo più basso
+        const sorted = [...suppliers].sort((a, b) => (Number(a.price_single) || 999999) - (Number(b.price_single) || 999999));
+
+        modalContent.innerHTML = `
+          <table class="w-full text-left text-sm mt-2 border-collapse">
+            <thead>
+              <tr class="border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold bg-gray-50">
+                <th class="p-3">Fornitore</th>
+                <th class="p-3">Cod. SKU</th>
+                <th class="p-3">Prezzo Btg (Netto)</th>
+                <th class="p-3">Prezzo Cassa</th>
+                <th class="p-3 text-center">Note</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${sorted.map((s, idx) => {
+                const isBest = idx === 0 && Number(s.price_single) > 0;
+                return `
+                  <tr class="${isBest ? 'bg-emerald-50/60' : ''}">
+                    <td class="p-3 font-medium text-gray-900">
+                      ${s.suppliers?.name || 'Sconosciuto'}
+                      ${isBest ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">PIÙ ECONOMICO</span>` : ''}
+                    </td>
+                    <td class="p-3 text-gray-500 font-mono text-xs">${s.supplier_sku || '-'}</td>
+                    <td class="p-3 font-semibold ${isBest ? 'text-emerald-700' : 'text-gray-800'}">
+                      ${s.price_single ? `${Number(s.price_single).toFixed(2)} €` : '-'}
+                    </td>
+                    <td class="p-3 text-gray-600">
+                      ${s.price_box ? `${Number(s.price_box).toFixed(2)} €` : '-'}
+                    </td>
+                    <td class="p-3 text-center">
+                      ${s.is_preferred ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">Preferito</span>` : '-'}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `;
       }
+
+      const modal = document.getElementById('supplierModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
     }
 
-    btnCancelEdit.addEventListener('click', resetForm);
-    document.getElementById('btn-refresh').addEventListener('click', loadItems);
-    window.startEdit = startEdit;
-    window.deleteItem = deleteItem;
+    function closeModal() {
+      const modal = document.getElementById('supplierModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
 
-    init();
+    // 5. Popolamento Dropdown Categorie
+    function populateCategories() {
+      const categories = [...new Set(allItems.map(i => i.category).filter(Boolean))];
+      const select = document.getElementById('categoryFilter');
+      select.innerHTML = '<option value="">Tutte le categorie</option>' + 
+        categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    // Carica al boot
+    document.addEventListener('DOMContentLoaded', loadItems);
   </script>
 </body>
 </html>
