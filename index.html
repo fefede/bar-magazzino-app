@@ -54,25 +54,31 @@
         <button id="btn-logout" class="text-xs text-slate-400 hover:text-rose-400 py-1 px-2 border border-slate-700 rounded transition">Esci</button>
       </div>
 
-      <!-- Sezione Azioni Magazzino (Per TUTTI gli utenti approvati) -->
+      <!-- Sezione Azioni Magazzino -->
       <div class="bg-slate-700/40 p-4 rounded-xl border border-slate-600 space-y-2">
-        <h3 class="text-sm font-semibold text-white mb-1">Operazioni Scorte</h3>
-        <p class="text-xs text-slate-400 mb-2">Inserisci i conteggi di fine turno o compila l'ordine.</p>
-        <div class="grid grid-cols-2 gap-2">
-          <button class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition active:scale-95">Checklist Conteggio</button>
-          <button class="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition active:scale-95">Riepilogo Ordine</button>
+        <h3 class="text-sm font-semibold text-white mb-1">Operazioni Scorte & Ordini</h3>
+        <p class="text-xs text-slate-400 mb-2">Verifiche periodiche e riordino merce ai fornitori.</p>
+
+        <!-- Accesso Unificato a Ordini & Liste -->
+        <a href="orders.html" class="block w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition shadow active:scale-95 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">📋</span>
+            <div class="text-left leading-tight">
+              <div class="text-xs">Ordini & Liste di Controllo</div>
+              <div class="text-[10px] font-normal text-slate-900/80">Verifica settimanale o ordine spot</div>
+            </div>
+          </div>
+          <span class="text-sm">→</span>
+        </a>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <a href="items.html" class="block text-center py-2.5 px-3 bg-slate-800 hover:bg-slate-750 border border-slate-600 text-slate-300 text-xs font-medium rounded-lg transition active:scale-95">
+            🍾 Catalogo Articoli
+          </a>
+          <a href="suppliers.html" class="block text-center py-2.5 px-3 bg-slate-800 hover:bg-slate-750 border border-slate-600 text-slate-300 text-xs font-medium rounded-lg transition active:scale-95">
+            🏢 Fornitori
+          </a>
         </div>
-        <a href="suppliers.html" class="block w-full text-center py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-slate-600 text-slate-300 text-xs font-medium rounded-lg transition active:scale-95 mt-2">
-          🏢 Rubrica & Fornitori →
-        </a>
-        <a href="items.html" class="block w-full text-center py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-slate-600 text-slate-300 text-xs font-medium rounded-lg transition active:scale-95">
-          📦 Catalogo Articoli & Scorte Minime →
-        </a>
-<a href="orders.html" class="p-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex items-center justify-between">
-  <span class="font-bold text-amber-400">📦 Ordini & Liste di Controllo</span>
-  <span class="text-slate-400 text-xs">→</span>
-</a>
-        
       </div>
 
       <!-- Sezione Riservata ESCLUSIVAMENTE all'Admin -->
