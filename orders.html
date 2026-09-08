@@ -14,9 +14,18 @@
     <div class="flex items-center justify-between border-b border-slate-700 pb-3">
       <div>
         <h1 class="text-lg font-bold text-amber-400">Ordini & Verifiche</h1>
-        <p class="text-[11px] text-slate-400">Gestione ordini spot e routine settimanale</p>
+        <p class="text-[11px] text-slate-400">Gestione ordini per singolo fornitore</p>
       </div>
       <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Dashboard</a>
+    </div>
+
+    <!-- SELETTORE FORNITORE PRINCIPALE (Vincolo ordine a un solo fornitore) -->
+    <div class="bg-slate-800 p-3 rounded-xl border border-amber-500/30 space-y-1 shadow-sm">
+      <div class="flex items-center justify-between">
+        <label class="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Fornitore di destinazione *</label>
+        <span class="text-[10px] text-slate-400">1 ordine = 1 fornitore</span>
+      </div>
+      <select id="supplier-selector" onchange="onSupplierChange()" class="w-full p-2 bg-slate-900 border border-slate-700 text-xs font-semibold rounded-lg text-slate-100 focus:outline-none focus:border-amber-400"></select>
     </div>
 
     <!-- Selettore Modalità (Tab) -->
@@ -32,13 +41,13 @@
     <!-- CARICAMENTO -->
     <div id="status-loading" class="py-12 text-center text-sm text-slate-400">
       <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
-      <p>Caricamento dati...</p>
+      <p>Caricamento listini e articoli...</p>
     </div>
 
     <!-- SEZIONE 1: VERIFICA DA LISTA -->
     <div id="section-checklist" class="hidden space-y-3">
       <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
-        <label class="text-xs text-slate-400 whitespace-nowrap">Seleziona Lista:</label>
+        <label class="text-xs text-slate-400 whitespace-nowrap">Template Lista:</label>
         <select id="checklist-selector" onchange="loadChecklistItems()" class="w-full p-2 bg-slate-900 border border-slate-700 text-xs rounded-lg text-amber-300 focus:outline-none focus:border-amber-400"></select>
       </div>
       <div id="checklist-container" class="space-y-2"></div>
@@ -47,8 +56,8 @@
     <!-- SEZIONE 2: ORDINE SPOT -->
     <div id="section-spot" class="hidden space-y-3">
       <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
-        <label class="text-xs text-slate-400">Cerca articolo o codice SKU:</label>
-        <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Gin, 10428, 4760..." class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+        <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
+        <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Lucano, Tonica..." class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
         <div id="spot-search-results" class="max-h-52 overflow-y-auto space-y-1 pt-1 hidden"></div>
       </div>
       <div id="spot-cart-container" class="space-y-2">
@@ -60,7 +69,7 @@
   <!-- BARRA FISSA IN BASSO: RIEPILOGO & INVIA -->
   <div id="bottom-bar" class="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur border-t border-slate-700 p-3 flex items-center justify-between max-w-lg mx-auto z-40">
     <div>
-      <div class="text-[11px] text-slate-400">Totale stimato (<span id="cart-count">0</span> art.):</div>
+      <div class="text-[11px] text-slate-400">Totale (<span id="cart-count">0</span> art.):</div>
       <div class="text-base font-bold font-mono text-amber-400" id="cart-total-price">0.00 €</div>
     </div>
     <button onclick="openSummaryModal()" class="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center gap-1.5">
@@ -73,8 +82,8 @@
     <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-5 border border-slate-700 space-y-4 max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between border-b border-slate-700 pb-2">
         <div>
-          <h3 class="font-bold text-amber-400 text-sm">Riepilogo Carrello Ordine</h3>
-          <p class="text-[10px] text-slate-400">Verifica i quantitativi e i codici fornitore</p>
+          <h3 class="font-bold text-amber-400 text-sm">Riepilogo Ordine</h3>
+          <p id="summary-supplier-label" class="text-[10px] text-slate-300 font-medium"></p>
         </div>
         <button onclick="closeSummaryModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
       </div>
@@ -83,7 +92,7 @@
 
       <div class="border-t border-slate-700 pt-3 space-y-2">
         <div class="flex justify-between text-xs font-bold text-slate-200">
-          <span>Totale Netto GrosMarket:</span>
+          <span>Totale Netto Fornitore:</span>
           <span id="summary-total-net" class="font-mono text-amber-400">0.00 €</span>
         </div>
         <div class="grid grid-cols-2 gap-2 pt-1">
@@ -104,8 +113,10 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let allItems = [];
+    let suppliers = [];
     let checklists = [];
     let currentTab = 'checklist';
+    let selectedSupplierId = '';
     let orderCart = new Map();
 
     async function init() {
@@ -125,7 +136,15 @@
           return;
         }
 
-        // items include units_per_pack; item_suppliers usa solo le colonne presenti nello schema
+        // Carica anagrafica fornitori
+        const { data: supData, error: supErr } = await supabaseClient
+          .from('suppliers')
+          .select('id, name')
+          .order('name');
+        if (supErr) throw supErr;
+        suppliers = supData || [];
+
+        // Carica catalogo con listini
         const { data: itemsData, error: itemsErr } = await supabaseClient
           .from('items')
           .select(`
@@ -141,15 +160,12 @@
             is_active,
             item_suppliers (
               id,
+              supplier_id,
               supplier_sku,
               price_single,
               price_box,
               vat_rate,
-              is_preferred,
-              suppliers (
-                id,
-                name
-              )
+              is_preferred
             )
           `)
           .eq('is_active', true)
@@ -158,22 +174,64 @@
         if (itemsErr) throw itemsErr;
         allItems = itemsData || [];
 
-        const { data: chkData, error: chkErr } = await supabaseClient
+        // Carica template checklists
+        const { data: chkData } = await supabaseClient
           .from('checklists')
           .select('*')
           .eq('is_active', true)
           .order('created_at');
 
-        if (chkErr) console.warn('Nessuna checklist trovata o tabella da inizializzare:', chkErr);
         checklists = chkData || [];
 
+        populateSupplierSelector();
         populateChecklistSelector();
+
         document.getElementById('status-loading').classList.add('hidden');
         switchTab('checklist');
       } catch (err) {
-        console.error('Errore inizializzazione:', err);
+        console.error('Errore avvio:', err);
         alert('Errore caricamento: ' + err.message);
       }
+    }
+
+    function populateSupplierSelector() {
+      const sel = document.getElementById('supplier-selector');
+      if (suppliers.length === 0) {
+        sel.innerHTML = '<option value="">Nessun fornitore registrato</option>';
+        return;
+      }
+      sel.innerHTML = suppliers.map((s, idx) => `<option value="${s.id}">${s.name}</option>`).join('');
+      // GrosMarket di default se presente
+      const gros = suppliers.find(s => s.name.toLowerCase().includes('grosmarket'));
+      selectedSupplierId = gros ? gros.id : suppliers[0].id;
+      sel.value = selectedSupplierId;
+    }
+
+    function onSupplierChange() {
+      selectedSupplierId = document.getElementById('supplier-selector').value;
+      // Ricarica la vista attiva per ricalcolare prezzi e subtotali
+      if (currentTab === 'checklist') loadChecklistItems();
+      else renderSpotCart();
+      updateCartTotals();
+    }
+
+    function getSupplierInfo(item) {
+      const links = item.item_suppliers || [];
+      const match = links.find(l => l.supplier_id === selectedSupplierId);
+      if (match) {
+        return {
+          hasPrice: !!match.price_single,
+          priceSingle: match.price_single ? Number(match.price_single) : 0,
+          priceBox: match.price_box ? Number(match.price_box) : 0,
+          sku: match.supplier_sku || ''
+        };
+      }
+      return {
+        hasPrice: false,
+        priceSingle: 0,
+        priceBox: 0,
+        sku: ''
+      };
     }
 
     function switchTab(tab) {
@@ -213,7 +271,7 @@
       const chkId = document.getElementById('checklist-selector').value;
       const container = document.getElementById('checklist-container');
       if (!chkId) {
-        container.innerHTML = '<p class="text-slate-500 text-xs text-center py-6">Nessuna lista attiva selezionata.</p>';
+        container.innerHTML = '<p class="text-slate-500 text-xs text-center py-6">Nessuna lista selezionata.</p>';
         return;
       }
 
@@ -242,8 +300,7 @@
 
         const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
-        const sup = (item.item_suppliers && item.item_suppliers[0]) || null;
-        const price = sup?.price_single ? Number(sup.price_single).toFixed(2) + ' €' : '-';
+        const supInfo = getSupplierInfo(item);
 
         return `
           <div id="chk-card-${item.id}" class="p-3 bg-slate-800 rounded-xl border border-slate-700 flex flex-col gap-2">
@@ -254,7 +311,10 @@
                   ${format ? `<span class="text-[9px] px-1 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
                 </div>
                 <div class="text-[10px] text-slate-400 mt-0.5">
-                  Prezzo btg: <span class="font-mono text-emerald-400">${price}</span> • Cassa: <span class="text-slate-300">${packSize} pz</span>
+                  ${supInfo.hasPrice 
+                    ? `Prezzo: <span class="font-mono text-emerald-400 font-bold">${supInfo.priceSingle.toFixed(2)} €</span>${supInfo.sku ? ` • SKU: <span class="font-mono text-slate-300">${supInfo.sku}</span>` : ''}` 
+                    : `<span class="text-slate-500 italic">Nessun prezzo fornitore</span>`} 
+                  • Cassa: <span class="text-slate-300">${packSize} pz</span>
                 </div>
               </div>
               <button onclick="dismissChecklistItem('${item.id}')" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-rose-400 text-[10px] border border-slate-600 transition">
@@ -317,9 +377,7 @@
       if (uEl) uEl.textContent = entry.units;
 
       updateCartTotals();
-      if (currentTab === 'spot') {
-        renderSpotCart();
-      }
+      if (currentTab === 'spot') renderSpotCart();
     }
 
     function filterSpotItems() {
@@ -335,24 +393,30 @@
 
       const matches = allItems.filter(i => {
         const nameMatch = i.name.toLowerCase().includes(q);
-        const skuMatch = (i.item_suppliers || []).some(s => (s.supplier_sku || '').toLowerCase().includes(q));
+        const skuMatch = (i.item_suppliers || []).some(s => 
+          s.supplier_id === selectedSupplierId && (s.supplier_sku || '').toLowerCase().includes(q)
+        );
         return nameMatch || skuMatch;
       }).slice(0, 6);
       
       if (matches.length === 0) {
-        resContainer.innerHTML = '<div class="p-2.5 text-slate-400 text-xs bg-slate-900 rounded-lg border border-slate-700">Nessun articolo corrispondente trovato</div>';
+        resContainer.innerHTML = '<div class="p-2.5 text-slate-400 text-xs bg-slate-900 rounded-lg border border-slate-700">Nessun articolo trovato</div>';
       } else {
         resContainer.innerHTML = matches.map(i => {
           const format = i.format_value ? `${i.format_value} ${i.format_unit || ''}` : '';
-          const sku = i.item_suppliers?.[0]?.supplier_sku;
+          const supInfo = getSupplierInfo(i);
+
           return `
             <div onclick="addSpotItem('${i.id}')" class="p-2.5 bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer border border-slate-700 flex items-center justify-between transition">
               <div>
                 <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
                 ${format ? `<span class="text-[10px] text-amber-300 ml-1">(${format})</span>` : ''}
-                ${sku ? `<span class="text-[9px] font-mono text-slate-400 block mt-0.5">Cod: ${sku}</span>` : ''}
+                <div class="text-[10px] text-slate-400 mt-0.5">
+                  ${supInfo.hasPrice ? `${supInfo.priceSingle.toFixed(2)} €/btg` : 'Senza listino'} 
+                  ${supInfo.sku ? `• Cod: ${supInfo.sku}` : ''}
+                </div>
               </div>
-              <span class="text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">+ Aggiungi 1 cassa</span>
+              <span class="text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">+ Aggiungi</span>
             </div>
           `;
         }).join('');
@@ -400,10 +464,9 @@
         const item = e.item;
         const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
-        const sup = (item.item_suppliers && item.item_suppliers[0]) || null;
-        const unitPrice = sup?.price_single ? Number(sup.price_single) : 0;
+        const supInfo = getSupplierInfo(item);
         const totalUnits = (e.packs * packSize) + e.units;
-        const rowTotal = totalUnits * unitPrice;
+        const rowTotal = totalUnits * supInfo.priceSingle;
 
         return `
           <div class="p-3 bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-between gap-2 shadow-sm">
@@ -411,7 +474,9 @@
               <div class="font-bold text-slate-200 text-xs truncate">${item.name}</div>
               <div class="text-[10px] text-slate-400 mt-0.5">
                 ${format ? `${format} • ` : ''}Cassa da ${packSize} pz 
-                ${rowTotal > 0 ? `• <span class="text-amber-400 font-mono font-bold">${rowTotal.toFixed(2)} €</span>` : ''}
+                ${supInfo.hasPrice 
+                  ? `• <span class="text-amber-400 font-mono font-bold">${rowTotal.toFixed(2)} €</span>` 
+                  : `• <span class="text-slate-500 italic">prezzo non disp.</span>`}
               </div>
             </div>
             
@@ -444,9 +509,8 @@
         const totalUnits = (entry.packs * (entry.item?.units_per_pack || 1)) + entry.units;
         if (totalUnits > 0) {
           distinctItems++;
-          const sup = (entry.item?.item_suppliers && entry.item.item_suppliers[0]) || null;
-          const unitPrice = sup?.price_single ? Number(sup.price_single) : 0;
-          totalCost += totalUnits * unitPrice;
+          const supInfo = getSupplierInfo(entry.item);
+          totalCost += totalUnits * supInfo.priceSingle;
         }
       }
 
@@ -457,7 +521,6 @@
     }
 
     function openSummaryModal() {
-      const summaryList = document.getElementById('summary-list');
       const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
 
       if (activeEntries.length === 0) {
@@ -465,14 +528,19 @@
         return;
       }
 
+      const curSup = suppliers.find(s => s.id === selectedSupplierId);
+      const supName = curSup ? curSup.name : 'Fornitore';
+      document.getElementById('summary-supplier-label').textContent = `Fornitore: ${supName}`;
+
       let grandTotal = 0;
+      const summaryList = document.getElementById('summary-list');
+
       summaryList.innerHTML = activeEntries.map(e => {
         const item = e.item;
         const packSize = item.units_per_pack || 1;
         const totalUnits = (e.packs * packSize) + e.units;
-        const sup = (item.item_suppliers && item.item_suppliers[0]) || null;
-        const unitPrice = sup?.price_single ? Number(sup.price_single) : 0;
-        const subtotal = totalUnits * unitPrice;
+        const supInfo = getSupplierInfo(item);
+        const subtotal = totalUnits * supInfo.priceSingle;
         grandTotal += subtotal;
 
         return `
@@ -480,12 +548,14 @@
             <div>
               <div class="font-bold text-slate-200 text-xs">${item.name}</div>
               <div class="text-[10px] text-slate-400">
-                ${sup?.supplier_sku ? `Cod. GrosMarket: <b class="text-amber-300 font-mono">${sup.supplier_sku}</b> • ` : ''}
+                ${supInfo.sku ? `Cod. SKU: <b class="text-amber-300 font-mono">${supInfo.sku}</b> • ` : ''}
                 Totale: <b>${totalUnits} btg</b> (${e.packs > 0 ? `${e.packs} casse` : ''}${e.packs > 0 && e.units > 0 ? ' + ' : ''}${e.units > 0 ? `${e.units} sfuse` : ''})
               </div>
             </div>
             <div class="text-right">
-              <div class="font-mono font-bold text-amber-400 text-xs">${subtotal.toFixed(2)} €</div>
+              ${supInfo.hasPrice 
+                ? `<div class="font-mono font-bold text-amber-400 text-xs">${subtotal.toFixed(2)} €</div>` 
+                : `<div class="text-slate-500 italic text-[11px]">Listino n.d.</div>`}
             </div>
           </div>
         `;
@@ -504,13 +574,16 @@
 
     function copyToClipboard() {
       const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
-      let text = "🛒 ORDINE GROSMARKET - BAR\n\n";
+      const curSup = suppliers.find(s => s.id === selectedSupplierId);
+      const supName = curSup ? curSup.name : 'Fornitore';
+
+      let text = `🛒 ORDINE: ${supName.toUpperCase()}\n\n`;
 
       activeEntries.forEach(e => {
         const packSize = e.item.units_per_pack || 1;
         const totalUnits = (e.packs * packSize) + e.units;
-        const sup = (e.item.item_suppliers && e.item.item_suppliers[0]) || null;
-        const sku = sup?.supplier_sku ? `[Cod. ${sup.supplier_sku}]` : '';
+        const supInfo = getSupplierInfo(e.item);
+        const sku = supInfo.sku ? `[Cod. ${supInfo.sku}]` : '';
         text += `• ${e.item.name} ${sku}: ${totalUnits} pz (${e.packs} casse + ${e.units} sfuse)\n`;
       });
 
@@ -518,16 +591,18 @@
       text += `\nTotale netto stimato: ${total}`;
 
       navigator.clipboard.writeText(text).then(() => {
-        alert('Elenco copiato negli appunti! Pronto da inviare o incollare.');
+        alert(`Elenco per ${supName} copiato negli appunti!`);
       });
     }
 
     async function confirmOrder() {
-      alert('Ordine verificato con successo! Puoi copiare l\'elenco o procedere.');
+      const curSup = suppliers.find(s => s.id === selectedSupplierId);
+      alert(`Ordine per ${curSup?.name || 'Fornitore'} verificato con successo!`);
       closeSummaryModal();
     }
 
     window.switchTab = switchTab;
+    window.onSupplierChange = onSupplierChange;
     window.loadChecklistItems = loadChecklistItems;
     window.dismissChecklistItem = dismissChecklistItem;
     window.changeQty = changeQty;
