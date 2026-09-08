@@ -3,22 +3,35 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Admin - Bar Magazzino</title>
+  <title>Gestione Utenze - Bar Magazzino</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4">
-  <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-5 border border-slate-700 my-auto">
+
+  <div class="w-full max-w-lg bg-slate-800 rounded-2xl shadow-xl p-5 border border-slate-700 my-auto">
     <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
-      <h1 class="text-lg font-bold text-amber-400">Pannello Admin</h1>
-      <a href="index.html" class="text-xs text-slate-400 hover:text-white py-1 px-3 border border-slate-700 rounded transition">← Torna all'App</a>
+      <div>
+        <h1 class="text-lg font-bold text-amber-400">Gestione Utenze & Ruoli</h1>
+        <p class="text-[11px] text-slate-400">Pannello riservato agli amministratori</p>
+      </div>
+      <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600 transition">← Torna all'App</a>
     </div>
 
-    <div id="admin-status" class="py-4 text-center text-sm text-slate-400">
-      Verifica permessi in corso...
+    <!-- Stato Caricamento -->
+    <div id="admin-status" class="py-8 text-center text-sm text-slate-400">
+      <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
+      <p>Verifica permessi in corso...</p>
     </div>
 
-    <div id="users-list" class="space-y-2 text-xs hidden"></div>
+    <!-- Lista Utenti -->
+    <div id="users-container" class="hidden space-y-3">
+      <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+        <span id="user-stats">Caricamento elenco...</span>
+        <button id="btn-refresh" class="text-amber-400 hover:text-amber-300 font-medium">Aggiorna ↻</button>
+      </div>
+      <div id="users-list" class="space-y-2 text-xs"></div>
+    </div>
   </div>
 
   <script>
@@ -27,67 +40,151 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const adminStatus = document.getElementById('admin-status');
+    const usersContainer = document.getElementById('users-container');
     const usersList = document.getElementById('users-list');
+    const userStats = document.getElementById('user-stats');
+
+    let currentUserId = null;
 
     async function checkAdmin() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.href = 'index.html';
+          return;
+        }
+
+        currentUserId = session.user.id;
+
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('is_admin, is_approved')
+          .eq('id', currentUserId)
+          .single();
+
+        if (error || !profile || !profile.is_admin || !profile.is_approved) {
+          alert('Accesso negato: non possiedi i privilegi di amministratore.');
+          window.location.href = 'index.html';
+          return;
+        }
+
+        adminStatus.classList.add('hidden');
+        usersContainer.classList.remove('hidden');
+        loadUsers();
+      } catch (err) {
+        console.error('Errore verifica:', err);
         window.location.href = 'index.html';
-        return;
       }
-
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', session.user.id)
-        .single();
-
-      if (!profile || !profile.is_admin) {
-        alert('Accesso negato: area riservata agli amministratori.');
-        window.location.href = 'index.html';
-        return;
-      }
-
-      adminStatus.classList.add('hidden');
-      usersList.classList.remove('hidden');
-      loadUsers();
     }
 
-    async function toggleApproval(userId, currentStatus) {
+    async function toggleApproval(userId, currentStatus, isAdmin) {
+      if (isAdmin && currentStatus) {
+        const confirmRevoke = confirm("Questo utente è un Admin. Revocando l'accesso disabiliterai anche i suoi poteri. Continuare?");
+        if (!confirmRevoke) return;
+      }
+
       const { error } = await supabaseClient
         .from('profiles')
         .update({ is_approved: !currentStatus })
         .eq('id', userId);
 
-      if (!error) loadUsers();
+      if (error) {
+        alert(error.message);
+      } else {
+        loadUsers();
+      }
+    }
+
+    async function toggleAdminRole(userId, currentIsAdmin) {
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({ 
+          is_admin: !currentIsAdmin,
+          // Se lo promuovi ad admin, lo approvi in automatico per coerenza
+          is_approved: !currentIsAdmin ? true : undefined 
+        })
+        .eq('id', userId);
+
+      if (error) {
+        alert(error.message);
+      } else {
+        loadUsers();
+      }
     }
 
     async function loadUsers() {
-      const { data: users } = await supabaseClient
+      const { data: users, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      usersList.innerHTML = users.map(u => `
-        <div class="flex items-center justify-between p-2 rounded bg-slate-900 border border-slate-700">
-          <div class="truncate mr-2">
-            <p class="font-medium text-slate-200 truncate">${u.email}</p>
-            <p class="text-[10px] ${u.is_approved ? 'text-emerald-400' : 'text-amber-400'}">
-              ${u.is_admin ? '★ Admin • ' : ''}${u.is_approved ? 'Abilitato' : 'In attesa'}
-            </p>
+      if (error) {
+        usersList.innerHTML = `<p class="text-rose-400 p-2">Errore nel caricamento: ${error.message}</p>`;
+        return;
+      }
+
+      const totalAdmins = users.filter(u => u.is_admin && u.is_approved).length;
+      userStats.textContent = `Totale utenti: ${users.length} (${totalAdmins} Admin)`;
+
+      usersList.innerHTML = users.map(u => {
+        const isSelf = u.id === currentUserId;
+        const isLastAdmin = u.is_admin && totalAdmins <= 1;
+
+        return `
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="truncate">
+                <span class="font-medium text-slate-200 truncate block">${u.email}</span>
+                <span class="text-[10px] text-slate-400">${isSelf ? '(Tu)' : ''}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                ${u.is_admin ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">ADMIN</span>' : ''}
+                <span class="text-[10px] px-2 py-0.5 rounded ${u.is_approved ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+                  ${u.is_approved ? 'Abilitato' : 'In attesa'}
+                </span>
+              </div>
+            </div>
+
+            <!-- Bottoni di gestione -->
+            <div class="flex items-center justify-end gap-2 pt-1 border-t border-slate-800">
+              <!-- Bottone Ruolo Admin -->
+              <button 
+                onclick="toggleAdminRole('${u.id}', ${u.is_admin})" 
+                ${isLastAdmin ? 'disabled title="Non puoi revocare l\'ultimo amministratore"' : ''}
+                class="px-2.5 py-1 text-[11px] rounded border transition ${
+                  isLastAdmin 
+                    ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
+                    : u.is_admin 
+                      ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' 
+                      : 'border-slate-600 text-slate-300 hover:bg-slate-800'
+                }">
+                ${u.is_admin ? (isLastAdmin ? 'Ultimo Admin' : 'Revoca Admin') : 'Rendi Admin'}
+              </button>
+
+              <!-- Bottone Accesso Base (Approva/Revoca) -->
+              <button 
+                onclick="toggleApproval('${u.id}', ${u.is_approved}, ${u.is_admin})" 
+                ${isLastAdmin ? 'disabled' : ''}
+                class="px-2.5 py-1 text-[11px] font-semibold rounded transition ${
+                  isLastAdmin
+                    ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                    : u.is_approved 
+                      ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30' 
+                      : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                }">
+                ${u.is_approved ? 'Revoca Accesso' : 'Approva Accesso'}
+              </button>
+            </div>
           </div>
-          ${u.is_admin ? '<span class="text-[10px] text-slate-500">Master</span>' : `
-            <button onclick="toggleApproval('${u.id}', ${u.is_approved})" class="px-2.5 py-1 text-[11px] font-semibold rounded ${
-              u.is_approved ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
-            }">
-              ${u.is_approved ? 'Revoca' : 'Approva'}
-            </button>
-          `}
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
+    document.getElementById('btn-refresh').addEventListener('click', loadUsers);
+
     window.toggleApproval = toggleApproval;
+    window.toggleAdminRole = toggleAdminRole;
+
     checkAdmin();
   </script>
 </body>
