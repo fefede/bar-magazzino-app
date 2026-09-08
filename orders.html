@@ -106,7 +106,6 @@
     let allItems = [];
     let checklists = [];
     let currentTab = 'checklist';
-    // Mappa con chiave itemId -> { item, packs, units, isDismissed }
     let orderCart = new Map();
 
     async function init() {
@@ -126,14 +125,31 @@
           return;
         }
 
-        // Carica catalogo completo con listini
+        // items include units_per_pack; item_suppliers usa solo le colonne presenti nello schema
         const { data: itemsData, error: itemsErr } = await supabaseClient
           .from('items')
           .select(`
-            *,
+            id,
+            name,
+            category,
+            unit_type,
+            format_value,
+            format_unit,
+            units_per_pack,
+            min_stock,
+            target_stock,
+            is_active,
             item_suppliers (
-              id, supplier_sku, price_single, price_box, units_per_pack,
-              suppliers ( id, name )
+              id,
+              supplier_sku,
+              price_single,
+              price_box,
+              vat_rate,
+              is_preferred,
+              suppliers (
+                id,
+                name
+              )
             )
           `)
           .eq('is_active', true)
@@ -142,16 +158,16 @@
         if (itemsErr) throw itemsErr;
         allItems = itemsData || [];
 
-        // Carica template checklists
-        const { data: chkData } = await supabaseClient
+        const { data: chkData, error: chkErr } = await supabaseClient
           .from('checklists')
           .select('*')
           .eq('is_active', true)
           .order('created_at');
 
+        if (chkErr) console.warn('Nessuna checklist trovata o tabella da inizializzare:', chkErr);
         checklists = chkData || [];
-        populateChecklistSelector();
 
+        populateChecklistSelector();
         document.getElementById('status-loading').classList.add('hidden');
         switchTab('checklist');
       } catch (err) {
@@ -195,20 +211,28 @@
 
     async function loadChecklistItems() {
       const chkId = document.getElementById('checklist-selector').value;
-      if (!chkId) return;
+      const container = document.getElementById('checklist-container');
+      if (!chkId) {
+        container.innerHTML = '<p class="text-slate-500 text-xs text-center py-6">Nessuna lista attiva selezionata.</p>';
+        return;
+      }
 
-      const { data: links } = await supabaseClient
+      const { data: links, error: linkErr } = await supabaseClient
         .from('checklist_items')
         .select('item_id, sort_order')
         .eq('checklist_id', chkId)
         .order('sort_order');
 
-      const container = document.getElementById('checklist-container');
+      if (linkErr) {
+        container.innerHTML = `<p class="text-rose-400 text-xs text-center py-4">Errore: ${linkErr.message}</p>`;
+        return;
+      }
+
       const linkedIds = new Set((links || []).map(l => l.item_id));
       const targetItems = allItems.filter(i => linkedIds.has(i.id));
 
       if (targetItems.length === 0) {
-        container.innerHTML = '<p class="text-slate-500 text-xs text-center py-6">Nessun articolo in questa lista.</p>';
+        container.innerHTML = '<p class="text-slate-500 text-xs text-center py-6">Nessun articolo associato a questa lista.</p>';
         return;
       }
 
@@ -216,7 +240,7 @@
         const cartEntry = orderCart.get(item.id) || { item, packs: 0, units: 0, isDismissed: false };
         if (cartEntry.isDismissed) return '';
 
-        const format = item.format_value ? `${item.format_value} ${item.format_unit}` : '';
+        const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
         const sup = (item.item_suppliers && item.item_suppliers[0]) || null;
         const price = sup?.price_single ? Number(sup.price_single).toFixed(2) + ' €' : '-';
@@ -309,7 +333,6 @@
         return;
       }
 
-      // Ricerca per nome articolo OPPURE per codice SKU fornitore
       const matches = allItems.filter(i => {
         const nameMatch = i.name.toLowerCase().includes(q);
         const skuMatch = (i.item_suppliers || []).some(s => (s.supplier_sku || '').toLowerCase().includes(q));
@@ -320,7 +343,7 @@
         resContainer.innerHTML = '<div class="p-2.5 text-slate-400 text-xs bg-slate-900 rounded-lg border border-slate-700">Nessun articolo corrispondente trovato</div>';
       } else {
         resContainer.innerHTML = matches.map(i => {
-          const format = i.format_value ? `${i.format_value} ${i.format_unit}` : '';
+          const format = i.format_value ? `${i.format_value} ${i.format_unit || ''}` : '';
           const sku = i.item_suppliers?.[0]?.supplier_sku;
           return `
             <div onclick="addSpotItem('${i.id}')" class="p-2.5 bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer border border-slate-700 flex items-center justify-between transition">
@@ -375,7 +398,7 @@
 
       container.innerHTML = activeEntries.map(e => {
         const item = e.item;
-        const format = item.format_value ? `${item.format_value} ${item.format_unit}` : '';
+        const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
         const sup = (item.item_suppliers && item.item_suppliers[0]) || null;
         const unitPrice = sup?.price_single ? Number(sup.price_single) : 0;
@@ -504,7 +527,6 @@
       closeSummaryModal();
     }
 
-    // Registrazione globale su window
     window.switchTab = switchTab;
     window.loadChecklistItems = loadChecklistItems;
     window.dismissChecklistItem = dismissChecklistItem;
