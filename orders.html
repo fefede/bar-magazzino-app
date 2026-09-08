@@ -58,7 +58,7 @@
       <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
         <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
         <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Lucano, Tonica..." class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
-        <div id="spot-search-results" class="max-h-52 overflow-y-auto space-y-1 pt-1 hidden"></div>
+        <div id="spot-search-results" class="max-h-56 overflow-y-auto space-y-1 pt-1 hidden"></div>
       </div>
       <div id="spot-cart-container" class="space-y-2.5">
         <p class="text-slate-500 text-xs text-center py-6">Nessun articolo aggiunto all'ordine spot.</p>
@@ -118,6 +118,36 @@
     let currentTab = 'checklist';
     let selectedSupplierId = '';
     let orderCart = new Map();
+
+    // Funzione helper per calcolare il prezzo normalizzato al Litro o al Kg
+    function calculateUnitRate(priceSingle, formatVal, formatUnit) {
+      if (!priceSingle || !formatVal || Number(formatVal) <= 0) return null;
+      const p = Number(priceSingle);
+      const val = Number(formatVal);
+      const unit = (formatUnit || '').trim().toLowerCase();
+
+      let rate = null;
+      let label = '';
+
+      if (unit === 'cl') {
+        rate = (p * 100) / val;
+        label = '€/L';
+      } else if (unit === 'l' || unit === 'lt' || unit === 'litri') {
+        rate = p / val;
+        label = '€/L';
+      } else if (unit === 'ml') {
+        rate = (p * 1000) / val;
+        label = '€/L';
+      } else if (unit === 'kg') {
+        rate = p / val;
+        label = '€/kg';
+      } else if (unit === 'g' || unit === 'gr') {
+        rate = (p * 1000) / val;
+        label = '€/kg';
+      }
+
+      return rate !== null ? `${rate.toFixed(2)} ${label}` : null;
+    }
 
     async function init() {
       try {
@@ -291,6 +321,7 @@
         const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
         const supInfo = getSupplierInfo(item);
+        const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, item.format_value, item.format_unit) : null;
         const totalUnits = (cartEntry.packs * packSize) + cartEntry.units;
         const rowTotal = totalUnits * supInfo.priceSingle;
 
@@ -304,7 +335,7 @@
                 </div>
                 <div class="text-[11px] text-slate-400 mt-1">
                   ${supInfo.hasPrice 
-                    ? `Prezzo: <span class="font-mono text-emerald-400 font-bold">${supInfo.priceSingle.toFixed(2)} €</span>${supInfo.sku ? ` • SKU: <span class="font-mono text-slate-300">${supInfo.sku}</span>` : ''}` 
+                    ? `<span class="font-mono text-emerald-400 font-bold">${supInfo.priceSingle.toFixed(2)} €/btg</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}${supInfo.sku ? ` • SKU: <span class="font-mono text-slate-300">${supInfo.sku}</span>` : ''}` 
                     : `<span class="text-slate-500 italic">Prezzo non disp.</span>`} 
                   • Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
                 </div>
@@ -417,6 +448,7 @@
         resContainer.innerHTML = matches.map(i => {
           const format = i.format_value ? `${i.format_value} ${i.format_unit || ''}` : '';
           const supInfo = getSupplierInfo(i);
+          const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, i.format_value, i.format_unit) : null;
 
           return `
             <div onclick="addSpotItem('${i.id}')" class="p-2.5 bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer border border-slate-700 flex items-center justify-between transition">
@@ -424,7 +456,9 @@
                 <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
                 ${format ? `<span class="text-[10px] text-amber-300 ml-1">(${format})</span>` : ''}
                 <div class="text-[10px] text-slate-400 mt-0.5">
-                  ${supInfo.hasPrice ? `${supInfo.priceSingle.toFixed(2)} €/btg` : 'Senza prezzo'} 
+                  ${supInfo.hasPrice 
+                    ? `<span class="text-emerald-400 font-mono font-medium">${supInfo.priceSingle.toFixed(2)} €/btg</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono">(${unitRate})</span>` : ''}` 
+                    : 'Senza prezzo'} 
                   ${supInfo.sku ? `• Cod: ${supInfo.sku}` : ''}
                 </div>
               </div>
@@ -477,6 +511,7 @@
         const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
         const supInfo = getSupplierInfo(item);
+        const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, item.format_value, item.format_unit) : null;
         const totalUnits = (e.packs * packSize) + e.units;
         const rowTotal = totalUnits * supInfo.priceSingle;
 
@@ -489,7 +524,7 @@
                 <div class="text-[11px] text-slate-400 mt-0.5">
                   ${format ? `${format} • ` : ''}Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
                   ${supInfo.hasPrice 
-                    ? `• <span class="text-emerald-400 font-mono">${supInfo.priceSingle.toFixed(2)} €/btg</span>` 
+                    ? `• <span class="text-emerald-400 font-mono">${supInfo.priceSingle.toFixed(2)} €/btg</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}` 
                     : `• <span class="text-slate-500 italic">prezzo non disp.</span>`}
                 </div>
               </div>
