@@ -66,7 +66,8 @@
     const SUPABASE_URL = 'https://wwtzkltjhllbclygwfqr.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Utilizziamo window.supabase.createClient rinominando la variabile locale per evitare collisioni
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const viewLoading = document.getElementById('view-loading');
     const viewLogin = document.getElementById('view-login');
@@ -83,31 +84,36 @@
     }
 
     async function checkUserSession() {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
 
-      if (!session) {
+        if (!session) {
+          switchView(viewLogin);
+          return;
+        }
+
+        const userId = session.user.id;
+        userEmailSpan.textContent = session.user.email;
+
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('is_approved')
+          .eq('id', userId)
+          .single();
+
+        if (error || !profile || !profile.is_approved) {
+          switchView(viewPending);
+        } else {
+          switchView(viewMain);
+        }
+      } catch (err) {
+        console.error('Errore durante il controllo sessione:', err);
         switchView(viewLogin);
-        return;
-      }
-
-      const userId = session.user.id;
-      userEmailSpan.textContent = session.user.email;
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('is_approved')
-        .eq('id', userId)
-        .single();
-
-      if (error || !profile || !profile.is_approved) {
-        switchView(viewPending);
-      } else {
-        switchView(viewMain);
       }
     }
 
     document.getElementById('btn-login').addEventListener('click', async () => {
-      await supabase.auth.signInWithOAuth({
+      await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin
@@ -116,7 +122,7 @@
     });
 
     const handleLogout = async () => {
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       window.location.reload();
     };
 
