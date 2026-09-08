@@ -640,7 +640,7 @@
       m.classList.remove('flex');
     }
 
-    function copyToClipboard() {
+function copyToClipboard() {
       const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       const supName = curSup ? curSup.name : 'Fornitore';
@@ -650,9 +650,20 @@
       activeEntries.forEach(e => {
         const packSize = e.item.units_per_pack || 1;
         const totalUnits = (e.packs * packSize) + e.units;
-        const supInfo = getSupplierInfo(e.item);
-        const sku = supInfo.sku ? `[Cod. ${supInfo.sku}]` : '';
-        text += `• ${e.item.name} ${sku}: ${totalUnits} pz totali (${e.packs} casse da ${packSize} + ${e.units} sfuse)\n`;
+        const itemName = e.item.name;
+
+        let breakdown = '';
+        if (e.packs > 0 && e.units > 0) {
+          const packLabel = e.packs === 1 ? '1 cassa' : `${e.packs} casse`;
+          breakdown = `${packLabel} ${itemName} + ${e.units} sfuse`;
+        } else if (e.packs > 0 && e.units === 0) {
+          const packLabel = e.packs === 1 ? '1 cassa' : `${e.packs} casse`;
+          breakdown = `${packLabel} ${itemName}`;
+        } else if (e.packs === 0 && e.units > 0) {
+          breakdown = `${e.units} sfuse ${itemName}`;
+        }
+
+        text += `• ${breakdown} : ${totalUnits} pz totali\n`;
       });
 
       const total = document.getElementById('summary-total-net').textContent;
@@ -662,7 +673,6 @@
         alert(`Elenco per ${supName} copiato negli appunti!`);
       });
     }
-
     async function confirmOrder() {
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       alert(`Ordine per ${curSup?.name || 'Fornitore'} verificato con successo!`);
