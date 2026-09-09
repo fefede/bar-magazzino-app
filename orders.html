@@ -1285,7 +1285,7 @@
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       const supName = curSup ? curSup.name : 'Fornitore';
 
-      let text = `🛒 ORDINE: ${supName.toUpperCase()}\n\n`;
+      let text = `ORDINE: ${supName.toUpperCase()}\n\n`;
 
       activeEntries.forEach(e => {
         const item = e.item;
@@ -1315,7 +1315,7 @@
           qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse di ${itemName} ${details}`;
         }
 
-        text += `• ${qtyStr}\n`;
+        text += `  ${qtyStr}\n`;
       });
 
       const total = document.getElementById('summary-total-net').textContent;
