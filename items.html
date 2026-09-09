@@ -53,18 +53,11 @@
           <div class="grid grid-cols-3 gap-2">
             <div>
               <label class="block text-slate-400 mb-1 font-semibold">Formato *</label>
-              <input type="number" step="any" min="0.01" id="format-value" required placeholder="Es. 70, 150" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono" />
+              <input type="number" step="any" min="0.01" id="format-value" required placeholder="Es. 70, 1.5" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono" />
             </div>
             <div>
-              <label class="block text-slate-400 mb-1 font-semibold">Unità *</label>
-              <select id="format-unit" required class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400">
-                <option value="cl">cl</option>
-                <option value="L">L</option>
-                <option value="ml">ml</option>
-                <option value="kg">kg</option>
-                <option value="g">g</option>
-                <option value="pz">pz</option>
-              </select>
+              <label class="block text-slate-400 mb-1 font-semibold">Unità Formato *</label>
+              <select id="format-unit" required class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400"></select>
             </div>
             <div>
               <label class="block text-slate-400 mb-1 font-semibold">Pz / Cassa *</label>
@@ -166,10 +159,10 @@
     let suppliersData = [];
     let categoriesData = [];
     let unitTypesData = [];
+    let formatUnitsData = [];
     let isUserAdmin = false;
     let activeModalItemId = null;
 
-    // Fallback di sicurezza in caso di disconnessione o ritardi tabelle lookup
     const DEFAULT_CATEGORIES = [
       { id: 'Alcolici', label: 'Alcolici' },
       { id: 'Analcolici', label: 'Analcolici' },
@@ -190,6 +183,15 @@
       { id: 'Sacchetto', label: 'Sacchetto' }
     ];
 
+    const DEFAULT_FORMAT_UNITS = [
+      { id: 'ml', label: 'ml' },
+      { id: 'cl', label: 'cl' },
+      { id: 'Lt', label: 'Lt' },
+      { id: 'gr', label: 'gr' },
+      { id: 'Kg', label: 'Kg' },
+      { id: 'pz', label: 'pz' }
+    ];
+
     function calculateUnitRate(priceSingle, formatVal, formatUnit) {
       if (!priceSingle || !formatVal || Number(formatVal) <= 0) return null;
       const p = Number(priceSingle);
@@ -202,7 +204,7 @@
       if (unit === 'cl') {
         rate = (p * 100) / val;
         label = '€/L';
-      } else if (unit === 'l' || unit === 'lt' || unit === 'litri') {
+      } else if (unit === 'lt' || unit === 'l' || unit === 'litri') {
         rate = p / val;
         label = '€/L';
       } else if (unit === 'ml') {
@@ -211,7 +213,7 @@
       } else if (unit === 'kg') {
         rate = p / val;
         label = '€/kg';
-      } else if (unit === 'g' || unit === 'gr') {
+      } else if (unit === 'gr' || unit === 'g') {
         rate = (p * 1000) / val;
         label = '€/kg';
       }
@@ -219,7 +221,6 @@
       return rate !== null ? `${rate.toFixed(2)} ${label}` : null;
     }
 
-    // Caricamento Tipi Unità da DB con fallback
     async function loadUnitTypes() {
       const unitSelect = document.getElementById('unit-type');
       try {
@@ -228,20 +229,13 @@
           .select('id, label')
           .order('sort_order', { ascending: true });
 
-        if (!error && units && units.length > 0) {
-          unitTypesData = units;
-        } else {
-          unitTypesData = DEFAULT_UNIT_TYPES;
-        }
+        unitTypesData = (!error && units && units.length > 0) ? units : DEFAULT_UNIT_TYPES;
       } catch (e) {
-        console.warn('Errore lettura unit_types, uso fallback:', e);
         unitTypesData = DEFAULT_UNIT_TYPES;
       }
-
       unitSelect.innerHTML = unitTypesData.map(u => `<option value="${u.id}">${u.label}</option>`).join('');
     }
 
-    // Caricamento Categorie da DB con fallback (popola form e filtro)
     async function loadCategories() {
       const formCatSelect = document.getElementById('category');
       const filterCatSelect = document.getElementById('filter-category');
@@ -252,24 +246,32 @@
           .select('id, label')
           .order('sort_order', { ascending: true });
 
-        if (!error && cats && cats.length > 0) {
-          categoriesData = cats;
-        } else {
-          categoriesData = DEFAULT_CATEGORIES;
-        }
+        categoriesData = (!error && cats && cats.length > 0) ? cats : DEFAULT_CATEGORIES;
       } catch (e) {
-        console.warn('Errore lettura item_categories, uso fallback:', e);
         categoriesData = DEFAULT_CATEGORIES;
       }
 
-      // Popola select del form di inserimento/modifica
       formCatSelect.innerHTML = categoriesData.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
-      // Popola select del filtro ricerca
       const currentFilter = filterCatSelect.value;
       filterCatSelect.innerHTML = `<option value="">Tutte le categorie</option>` + 
         categoriesData.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
       filterCatSelect.value = currentFilter;
+    }
+
+    async function loadFormatUnits() {
+      const formatUnitSelect = document.getElementById('format-unit');
+      try {
+        const { data: fUnits, error } = await supabaseClient
+          .from('format_units')
+          .select('id, label')
+          .order('sort_order', { ascending: true });
+
+        formatUnitsData = (!error && fUnits && fUnits.length > 0) ? fUnits : DEFAULT_FORMAT_UNITS;
+      } catch (e) {
+        formatUnitsData = DEFAULT_FORMAT_UNITS;
+      }
+      formatUnitSelect.innerHTML = formatUnitsData.map(fu => `<option value="${fu.id}">${fu.label}</option>`).join('');
     }
 
     async function init() {
@@ -295,13 +297,14 @@
           document.getElementById('modal-add-supplier-form').classList.remove('hidden');
         }
 
-        // 1. Carica domini da DB
+        // 1. Caricamento contemporaneo dei domini (Tipi Unità, Categorie, Unità Formato)
         await Promise.all([
           loadUnitTypes(),
-          loadCategories()
+          loadCategories(),
+          loadFormatUnits()
         ]);
 
-        // 2. Carica fornitori per il modal
+        // 2. Caricamento fornitori
         const { data: sups } = await supabaseClient
           .from('suppliers')
           .select('id, name')
@@ -311,7 +314,7 @@
         const sel = document.getElementById('modal-supplier-select');
         sel.innerHTML = suppliersData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
-        // 3. Carica lista articoli
+        // 3. Caricamento lista articoli
         await loadItems();
 
         document.getElementById('status-loading').classList.add('hidden');
@@ -435,7 +438,6 @@
       }).join('');
     }
 
-    // Modal Listini Fornitori
     function openSupplierModal(itemId) {
       activeModalItemId = itemId;
       const item = itemsData.find(i => i.id === itemId);
@@ -529,7 +531,6 @@
       openSupplierModal(activeModalItemId);
     }
 
-    // Gestione Form Inserimento / Modifica Articolo (Campi tutti obbligatori)
     document.getElementById('item-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = document.getElementById('item-id').value;
@@ -542,12 +543,11 @@
       const minStock = parseInt(document.getElementById('min-stock').value);
       const targetStock = parseInt(document.getElementById('target-stock').value);
 
-      // Validazione form
       if (!name) { alert('Inserisci il nome dell\'articolo'); return; }
       if (!category) { alert('Seleziona una categoria'); return; }
       if (!unitType) { alert('Seleziona un tipo unità'); return; }
-      if (isNaN(formatValue) || formatValue <= 0) { alert('Inserisci un formato numerico valido (es. 70 o 150)'); return; }
-      if (!formatUnit) { alert('Seleziona l\'unità di misura'); return; }
+      if (isNaN(formatValue) || formatValue <= 0) { alert('Inserisci un formato valido'); return; }
+      if (!formatUnit) { alert('Seleziona l\'unità di misura del formato'); return; }
       if (isNaN(unitsPerPack) || unitsPerPack < 1) { alert('I pezzi per cassa devono essere almeno 1'); return; }
       if (isNaN(minStock) || minStock < 0) { alert('La scorta minima non può essere negativa'); return; }
       if (isNaN(targetStock) || targetStock < minStock) { 
@@ -591,7 +591,6 @@
       document.getElementById('item-id').value = item.id;
       document.getElementById('name').value = item.name;
 
-      // Imposta Categoria (gestione sicurezza opzione dinamica)
       const catSel = document.getElementById('category');
       if (item.category) {
         let existsCat = Array.from(catSel.options).some(o => o.value === item.category);
@@ -604,7 +603,6 @@
         catSel.value = item.category;
       }
 
-      // Imposta Tipo Unità (gestione sicurezza opzione dinamica)
       const unitSel = document.getElementById('unit-type');
       if (item.unit_type) {
         let existsUnit = Array.from(unitSel.options).some(o => o.value === item.unit_type);
@@ -617,8 +615,19 @@
         unitSel.value = item.unit_type;
       }
 
+      const formatUnitSel = document.getElementById('format-unit');
+      if (item.format_unit) {
+        let existsFmt = Array.from(formatUnitSel.options).some(o => o.value === item.format_unit);
+        if (!existsFmt) {
+          const opt = document.createElement('option');
+          opt.value = item.format_unit;
+          opt.textContent = item.format_unit;
+          formatUnitSel.appendChild(opt);
+        }
+        formatUnitSel.value = item.format_unit;
+      }
+
       document.getElementById('format-value').value = item.format_value || '';
-      document.getElementById('format-unit').value = item.format_unit || 'cl';
       document.getElementById('units-per-pack').value = item.units_per_pack || 1;
       document.getElementById('min-stock').value = item.min_stock ?? 2;
       document.getElementById('target-stock').value = item.target_stock ?? 6;
