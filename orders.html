@@ -1222,7 +1222,7 @@
       if (totalEl) totalEl.textContent = totalCost.toFixed(2) + ' €';
     }
 
-    function openSummaryModal() {
+function openSummaryModal() {
       const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
         .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
@@ -1248,11 +1248,19 @@
         grandTotal += subtotal;
         const uSuffix = getUnitSuffix(item.unit_type);
 
+        // Stringa formato e contenitore (es. 33 cl - Lattina)
+        const formatDetails = item.unit_type 
+          ? `${item.format_value ? item.format_value + ' ' + (item.format_unit || '') + ' - ' : ''}${item.unit_type}` 
+          : '';
+
         return `
           <div class="p-2.5 bg-slate-900 rounded-lg border border-slate-700/80 flex items-center justify-between">
             <div>
-              <div class="font-bold text-slate-200 text-xs">${item.name}</div>
-              <div class="text-[10px] text-slate-400">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-bold text-slate-200 text-xs">${item.name}</span>
+                ${formatDetails ? `<span class="text-[10px] px-1.5 py-0.2 bg-slate-800 text-slate-300 font-mono rounded border border-slate-700">${formatDetails}</span>` : ''}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">
                 ${supInfo.sku ? `Cod. SKU: <b class="text-amber-300 font-mono">${supInfo.sku}</b> • ` : ''}
                 Totale: <b class="text-emerald-400 font-mono">${totalUnits} ${uSuffix}</b> (${e.packs > 0 ? `${e.packs} casse` : ''}${e.packs > 0 && e.units > 0 ? ' + ' : ''}${e.units > 0 ? `${e.units} sfuse` : ''})
               </div>
