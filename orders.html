@@ -1316,12 +1316,15 @@ function openSummaryModal() {
         let qtyStr = '';
         if (e.packs > 0 && e.units > 0) {
           const pLabel = e.packs === 1 ? '1     cassa' : `${String(e.packs).padEnd(5, ' ')} casse`;
-          qtyStr = `${pLabel} di ${itemName} ${details} + ${e.units} sfuse`;
+          //qtyStr = `${pLabel} di ${itemName} ${details} + ${e.units} sfuse`;
+          qtyStr = `${pLabel}    ${itemName} ${details} + ${e.units} sfuse`;
         } else if (e.packs > 0 && e.units === 0) {
           const pLabel = e.packs === 1 ? '1     cassa' : `${String(e.packs).padEnd(5, ' ')} casse`;
-          qtyStr = `${pLabel} di ${itemName} ${details}`;
+          //qtyStr = `${pLabel} di ${itemName} ${details}`;
+          qtyStr = `${pLabel}    ${itemName} ${details}`;
         } else if (e.packs === 0 && e.units > 0) {
-          qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse di ${itemName} ${details}`;
+          //qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse di ${itemName} ${details}`;
+          qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse    ${itemName} ${details}`;
         }
 
         text += `  ${qtyStr}\n`;
