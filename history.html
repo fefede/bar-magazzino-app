@@ -97,7 +97,7 @@
 
         currentUserRole = profile.role || 'user';
 
-        // 1. Carica profili utenti (per mostrare nome di chi ha ordinato)
+        // 1. Carica profili utenti
         try {
           const { data: profs } = await supabaseClient.from('profiles').select('id, full_name, email');
           (profs || []).forEach(p => {
@@ -113,7 +113,7 @@
         suppliers = supData || [];
         populateSupplierFilter();
 
-        // 3. Carica storico ordini con relative righe
+        // 3. Carica storico ordini
         await fetchOrders();
 
         document.getElementById('status-loading').classList.add('hidden');
@@ -219,7 +219,7 @@
               </div>
             </div>
 
-            <!-- Dettaglio rapido righe -->
+            <!-- Dettaglio righe -->
             <div class="space-y-1.5 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 text-xs">
               <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Articoli inclusi (${totalItemsCount} referenze):
@@ -248,6 +248,9 @@
 
               ${isAdmin ? `
                 <div class="flex items-center gap-1.5">
+                  <button onclick="editHistoricOrder('${order.id}')" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-amber-400 rounded-lg text-xs font-semibold border border-amber-500/35 transition active:scale-95" title="Modifica ordine">
+                    ✏️ Modifica
+                  </button>
                   <button onclick="toggleOrderStatus('${order.id}', '${order.status}')" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition active:scale-95" title="Cambia stato">
                     ${order.status === 'inviato' ? '✓ Segna Consegnato' : '↺ Riapri'}
                   </button>
@@ -280,14 +283,12 @@
       }
 
       try {
-        // 1. Svuota la bozza spot personale corrente
         await supabaseClient
           .from('order_drafts')
           .delete()
           .eq('user_id', currentUserId)
           .eq('order_type', 'spot');
 
-        // 2. Prepara le nuove righe
         let sortOrder = 0;
         const draftRows = [];
 
@@ -316,6 +317,61 @@
       } catch (err) {
         console.error('Errore copia in bozza:', err);
         alert('Errore durante la copia nella bozza: ' + err.message);
+      }
+    }
+
+    // ==========================================
+    // AZIONI ADMIN: MODIFICA ORDINE ESISTENTE
+    // ==========================================
+    async function editHistoricOrder(orderId) {
+      const order = ordersList.find(o => o.id === orderId);
+      if (!order) return;
+
+      const items = order.order_items || [];
+      if (items.length === 0) {
+        alert('Questo ordine non contiene articoli.');
+        return;
+      }
+
+      if (!confirm(`Vuoi MODIFICARE l'ordine di ${order.suppliers?.name || 'Fornitore'} del ${formatDateTime(order.created_at)}?\n\nGli articoli verranno caricati nella bozza spot per consentirti le correzioni e l'aggiornamento sullo stesso ID.`)) {
+        return;
+      }
+
+      try {
+        sessionStorage.setItem('editing_order_id', orderId);
+        sessionStorage.setItem('editing_supplier_id', order.supplier_id);
+
+        await supabaseClient
+          .from('order_drafts')
+          .delete()
+          .eq('user_id', currentUserId)
+          .eq('order_type', 'spot');
+
+        let sortOrder = 0;
+        const draftRows = [];
+        items.forEach(it => {
+          if (it.item_id) {
+            sortOrder++;
+            draftRows.push({
+              user_id: currentUserId,
+              order_type: 'spot',
+              item_id: it.item_id,
+              boxes: it.boxes || 0,
+              singles: it.singles || 0,
+              sort_order: sortOrder,
+              updated_at: new Date().toISOString()
+            });
+          }
+        });
+
+        if (draftRows.length > 0) {
+          await supabaseClient.from('order_drafts').insert(draftRows);
+        }
+
+        window.location.href = 'orders.html';
+      } catch (err) {
+        console.error('Errore avvio modifica ordine:', err);
+        alert('Errore: ' + err.message);
       }
     }
 
@@ -360,6 +416,7 @@
 
     window.renderOrders = renderOrders;
     window.copyHistoricOrderToSpotDraft = copyHistoricOrderToSpotDraft;
+    window.editHistoricOrder = editHistoricOrder;
     window.toggleOrderStatus = toggleOrderStatus;
     window.deleteHistoricOrder = deleteHistoricOrder;
 
