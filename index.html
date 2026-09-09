@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Bar Magazzino</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f59e0b">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -54,24 +56,27 @@
         <button id="btn-logout" class="text-xs text-slate-400 hover:text-rose-400 py-1 px-2 border border-slate-700 rounded transition">Esci</button>
       </div>
 
-      <!-- BANNER INSTALLAZIONE APP (PWA) -->
-      <div id="pwa-install-banner" class="hidden bg-slate-700/60 p-3 rounded-xl border border-amber-500/30 space-y-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="text-base">📲</span>
-            <span class="text-xs font-bold text-amber-400">Salva App su Schermata Home</span>
+      <!-- BANNER INSTALLAZIONE APP CON ICONA RAPPRESENTATIVA -->
+      <div id="pwa-install-banner" class="hidden bg-slate-700/50 p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-lg shrink-0 shadow-inner">
+            📥
+          </div>
+          <div class="text-left">
+            <div class="text-xs font-bold text-amber-300">Installa Bar Magazzino</div>
+            <div class="text-[11px] text-slate-300 leading-tight">Aggiungi l'app alla schermata Home del tuo telefono per un accesso rapido.</div>
           </div>
         </div>
         
-        <!-- Pulsante Installazione Automatica (Android / Chrome Desktop) -->
-        <button id="btn-install-app" class="hidden w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow">
-          <span>📥 Installa subito l'App</span>
+        <!-- Pulsante Installazione Automatica (Android / Chrome) -->
+        <button id="btn-install-app" class="hidden w-full py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow">
+          <span>📲 Aggiungi alla Home</span>
         </button>
 
-        <!-- Istruzioni Manuali (iOS / Safari o fallback) -->
-        <div id="pwa-ios-instructions" class="hidden text-[11px] text-slate-300 leading-relaxed text-left bg-slate-900/60 p-2.5 rounded-lg border border-slate-700">
+        <!-- Istruzioni Manuali (iOS / Safari) -->
+        <div id="pwa-ios-instructions" class="hidden text-[11px] text-slate-300 leading-relaxed text-left bg-slate-900/80 p-2.5 rounded-lg border border-slate-700">
           <p class="font-semibold text-amber-300 mb-1">Come installarla su iPhone / iPad:</p>
-          1. Tocca il pulsante <b class="text-white">Condividi</b> <span class="text-base">⎋</span> in basso su Safari.<br>
+          1. Tocca il tasto <b class="text-white">Condividi</b> <span class="text-sm">⎋</span> in basso su Safari.<br>
           2. Scorri il menu e seleziona <b class="text-white">"Aggiungi a Home"</b> 📱.
         </div>
       </div>
@@ -207,21 +212,17 @@
     const btnInstallApp = document.getElementById('btn-install-app');
     const pwaIosInstructions = document.getElementById('pwa-ios-instructions');
 
-    // Verifica se l'app è già avviata in modalità standalone (schermata home)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
     if (!isStandalone) {
-      // Mostra il banner se non è già installata
       pwaBanner.classList.remove('hidden');
 
-      // Intercetta l'evento nativo di installazione (Android / Chrome)
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        btnInstallApp.classList.remove('hidden'); // Mostra il tasto rapido di installazione
+        btnInstallApp.classList.remove('hidden'); // Fa comparire il pulsante Android
       });
 
-      // Click sul pulsante di installazione automatica
       btnInstallApp.addEventListener('click', async () => {
         if (deferredPrompt) {
           deferredPrompt.prompt();
@@ -233,10 +234,9 @@
         }
       });
 
-      // Rileva se è un dispositivo iOS (iPhone/iPad)
       const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
       if (isIos) {
-        pwaIosInstructions.classList.remove('hidden'); // Mostra la guida con il tasto Condividi di Safari
+        pwaIosInstructions.classList.remove('hidden'); // Mostra le istruzioni per iPhone
       }
     }
 
