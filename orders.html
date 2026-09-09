@@ -1305,7 +1305,7 @@ function copyToClipboard() {
           qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse di ${itemName} ${details}`;
         }
 
-        text += `• ${qtyStr}\n`;
+        text += `  ${qtyStr}\n`;
       });
 
       const total = document.getElementById('summary-total-net').textContent;
