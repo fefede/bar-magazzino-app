@@ -57,7 +57,12 @@
     <div id="section-spot" class="hidden space-y-3">
       <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
         <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
-        <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Lucano, Tonica..." class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Coca-Cola..." class="sm:col-span-2 w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          <select id="spot-category-filter" onchange="filterSpotItems()" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-amber-300 focus:outline-none focus:border-amber-400">
+            <option value="">Tutte le cat.</option>
+          </select>
+        </div>
         <div id="spot-search-results" class="max-h-56 overflow-y-auto space-y-1 pt-1 hidden"></div>
       </div>
       <div id="spot-cart-container" class="space-y-2.5">
@@ -115,11 +120,33 @@
     let allItems = [];
     let suppliers = [];
     let checklists = [];
+    let categories = [];
     let currentTab = 'checklist';
     let selectedSupplierId = '';
     let orderCart = new Map();
 
-    // Funzione helper per calcolare il prezzo normalizzato al Litro o al Kg
+    const DEFAULT_CATEGORIES = [
+      { id: 'Alcolici', label: 'Alcolici' },
+      { id: 'Analcolici', label: 'Analcolici' },
+      { id: 'Birre', label: 'Birre' },
+      { id: 'Stuzzichini', label: 'Stuzzichini' },
+      { id: 'Vino', label: 'Vino' },
+      { id: 'Caffetteria', label: 'Caffetteria' },
+      { id: 'Consumabili', label: 'Consumabili' },
+      { id: 'Altro', label: 'Altro' }
+    ];
+
+    function getUnitSuffix(unitType) {
+      if (!unitType) return 'pz';
+      const u = unitType.toLowerCase();
+      if (u.includes('vetro') || u.includes('pet') || u.includes('bottiglia')) return 'btg';
+      if (u.includes('lattina')) return 'lat';
+      if (u.includes('brick')) return 'brick';
+      if (u.includes('fusto')) return 'fusto';
+      if (u.includes('sacchetto')) return 'sacc';
+      return 'pz';
+    }
+
     function calculateUnitRate(priceSingle, formatVal, formatUnit) {
       if (!priceSingle || !formatVal || Number(formatVal) <= 0) return null;
       const p = Number(priceSingle);
@@ -165,6 +192,21 @@
           window.location.href = 'index.html';
           return;
         }
+
+        // Caricamento categorie da DB con fallback
+        try {
+          const { data: catData } = await supabaseClient
+            .from('item_categories')
+            .select('id, label')
+            .order('sort_order', { ascending: true });
+          categories = (catData && catData.length > 0) ? catData : DEFAULT_CATEGORIES;
+        } catch (e) {
+          categories = DEFAULT_CATEGORIES;
+        }
+
+        const spotCatSel = document.getElementById('spot-category-filter');
+        spotCatSel.innerHTML = '<option value="">Tutte le cat.</option>' + 
+          categories.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
         const { data: supData, error: supErr } = await supabaseClient
           .from('suppliers')
@@ -324,6 +366,7 @@
         const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, item.format_value, item.format_unit) : null;
         const totalUnits = (cartEntry.packs * packSize) + cartEntry.units;
         const rowTotal = totalUnits * supInfo.priceSingle;
+        const uSuffix = getUnitSuffix(item.unit_type);
 
         return `
           <div id="chk-card-${item.id}" class="p-3.5 bg-slate-800 rounded-xl border border-slate-700 flex flex-col gap-3 shadow-sm">
@@ -332,10 +375,11 @@
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-bold text-slate-200 text-sm">${item.name}</span>
                   ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">${item.category}</span>
                 </div>
                 <div class="text-[11px] text-slate-400 mt-1">
                   ${supInfo.hasPrice 
-                    ? `<span class="font-mono text-emerald-400 font-bold">${supInfo.priceSingle.toFixed(2)} €/btg</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}${supInfo.sku ? ` • SKU: <span class="font-mono text-slate-300">${supInfo.sku}</span>` : ''}` 
+                    ? `<span class="font-mono text-emerald-400 font-bold">${supInfo.priceSingle.toFixed(2)} €/${uSuffix}</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}${supInfo.sku ? ` • SKU: <span class="font-mono text-slate-300">${supInfo.sku}</span>` : ''}` 
                     : `<span class="text-slate-500 italic">Prezzo non disp.</span>`} 
                   • Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
                 </div>
@@ -345,10 +389,10 @@
               </button>
             </div>
 
-            <!-- CONTROLLI QUANTITÀ CON ETICHETTE CHIARE E TOTALE PEZZI -->
+            <!-- CONTROLLI QUANTITÀ CON SUFFISSI DINAMICI -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
-                <!-- Box Cartoni -->
+                <!-- Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
@@ -358,9 +402,9 @@
                   </div>
                 </div>
 
-                <!-- Box Bottiglie Sfuse -->
+                <!-- Unità Sfuse -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
-                  <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">🍾 Bottiglie Sfuse</span>
+                  <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
                     <button onclick="changeQty('${item.id}', 'units', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>
                     <span class="font-mono font-bold text-sm text-white" id="units-${item.id}">${cartEntry.units}</span>
@@ -369,10 +413,10 @@
                 </div>
               </div>
 
-              <!-- Riepilogo Pezzi Calcolati & Costo Riga -->
+              <!-- Riepilogo Calcolato -->
               <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-xs">
                 <div class="text-slate-300">
-                  Totale pezzi: <span class="font-bold text-emerald-400 font-mono text-sm" id="total-units-${item.id}">${totalUnits}</span> btg
+                  Totale pezzi: <span class="font-bold text-emerald-400 font-mono text-sm" id="total-units-${item.id}">${totalUnits}</span> ${uSuffix}
                 </div>
                 ${supInfo.hasPrice && rowTotal > 0 ? `<div class="font-mono font-bold text-amber-400">${rowTotal.toFixed(2)} €</div>` : ''}
               </div>
@@ -426,21 +470,23 @@
     function filterSpotItems() {
       const input = document.getElementById('spot-search');
       const q = (input ? input.value : '').toLowerCase().trim();
+      const selectedCat = document.getElementById('spot-category-filter')?.value || '';
       const resContainer = document.getElementById('spot-search-results');
 
-      if (!q) {
+      if (!q && !selectedCat) {
         resContainer.innerHTML = '';
         resContainer.classList.add('hidden');
         return;
       }
 
       const matches = allItems.filter(i => {
-        const nameMatch = i.name.toLowerCase().includes(q);
-        const skuMatch = (i.item_suppliers || []).some(s => 
+        const nameMatch = !q || i.name.toLowerCase().includes(q);
+        const skuMatch = !q || (i.item_suppliers || []).some(s => 
           s.supplier_id === selectedSupplierId && (s.supplier_sku || '').toLowerCase().includes(q)
         );
-        return nameMatch || skuMatch;
-      }).slice(0, 6);
+        const catMatch = !selectedCat || i.category === selectedCat;
+        return (nameMatch || skuMatch) && catMatch;
+      }).slice(0, 8);
       
       if (matches.length === 0) {
         resContainer.innerHTML = '<div class="p-2.5 text-slate-400 text-xs bg-slate-900 rounded-lg border border-slate-700">Nessun articolo trovato</div>';
@@ -449,20 +495,24 @@
           const format = i.format_value ? `${i.format_value} ${i.format_unit || ''}` : '';
           const supInfo = getSupplierInfo(i);
           const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, i.format_value, i.format_unit) : null;
+          const uSuffix = getUnitSuffix(i.unit_type);
 
           return `
             <div onclick="addSpotItem('${i.id}')" class="p-2.5 bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer border border-slate-700 flex items-center justify-between transition">
               <div>
-                <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
-                ${format ? `<span class="text-[10px] text-amber-300 ml-1">(${format})</span>` : ''}
+                <div class="flex items-center gap-1.5">
+                  <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
+                  ${format ? `<span class="text-[10px] text-amber-300">(${format})</span>` : ''}
+                  <span class="text-[9px] px-1 rounded bg-slate-800 text-slate-400">${i.category}</span>
+                </div>
                 <div class="text-[10px] text-slate-400 mt-0.5">
                   ${supInfo.hasPrice 
-                    ? `<span class="text-emerald-400 font-mono font-medium">${supInfo.priceSingle.toFixed(2)} €/btg</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono">(${unitRate})</span>` : ''}` 
+                    ? `<span class="text-emerald-400 font-mono font-medium">${supInfo.priceSingle.toFixed(2)} €/${uSuffix}</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono">(${unitRate})</span>` : ''}` 
                     : 'Senza prezzo'} 
                   ${supInfo.sku ? `• Cod: ${supInfo.sku}` : ''}
                 </div>
               </div>
-              <span class="text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">+ Aggiungi 1 cassa</span>
+              <span class="text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">+ 1 cassa</span>
             </div>
           `;
         }).join('');
@@ -514,27 +564,25 @@
         const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, item.format_value, item.format_unit) : null;
         const totalUnits = (e.packs * packSize) + e.units;
         const rowTotal = totalUnits * supInfo.priceSingle;
+        const uSuffix = getUnitSuffix(item.unit_type);
 
         return `
           <div class="p-3.5 bg-slate-800 rounded-xl border border-slate-700 flex flex-col gap-3 shadow-sm">
-            <!-- Header Riga Articolo -->
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
                 <div class="font-bold text-slate-200 text-sm truncate">${item.name}</div>
                 <div class="text-[11px] text-slate-400 mt-0.5">
                   ${format ? `${format} • ` : ''}Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
                   ${supInfo.hasPrice 
-                    ? `• <span class="text-emerald-400 font-mono">${supInfo.priceSingle.toFixed(2)} €/btg</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}` 
+                    ? `• <span class="text-emerald-400 font-mono">${supInfo.priceSingle.toFixed(2)} €/${uSuffix}</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}` 
                     : `• <span class="text-slate-500 italic">prezzo non disp.</span>`}
                 </div>
               </div>
               <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0">✕</button>
             </div>
 
-            <!-- CONTROLLI QUANTITÀ CON ETICHETTE SEPARATE -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
-                <!-- Selettore Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
@@ -544,9 +592,8 @@
                   </div>
                 </div>
 
-                <!-- Selettore Bottiglie Sfuse -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
-                  <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">🍾 Bottiglie Sfuse</span>
+                  <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
                     <button onclick="changeQty('${item.id}', 'units', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>
                     <span class="font-mono font-bold text-sm text-white">${e.units}</span>
@@ -555,10 +602,9 @@
                 </div>
               </div>
 
-              <!-- Riepilogo Pezzi Totali Calcolati e Prezzo Riga -->
               <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-xs">
                 <div class="text-slate-300">
-                  Totale pezzi: <span class="font-bold text-emerald-400 font-mono text-sm">${totalUnits}</span> btg
+                  Totale pezzi: <span class="font-bold text-emerald-400 font-mono text-sm">${totalUnits}</span> ${uSuffix}
                 </div>
                 ${supInfo.hasPrice && rowTotal > 0 ? `<div class="font-mono font-bold text-amber-400">${rowTotal.toFixed(2)} €</div>` : ''}
               </div>
@@ -610,6 +656,7 @@
         const supInfo = getSupplierInfo(item);
         const subtotal = totalUnits * supInfo.priceSingle;
         grandTotal += subtotal;
+        const uSuffix = getUnitSuffix(item.unit_type);
 
         return `
           <div class="p-2.5 bg-slate-900 rounded-lg border border-slate-700/80 flex items-center justify-between">
@@ -617,7 +664,7 @@
               <div class="font-bold text-slate-200 text-xs">${item.name}</div>
               <div class="text-[10px] text-slate-400">
                 ${supInfo.sku ? `Cod. SKU: <b class="text-amber-300 font-mono">${supInfo.sku}</b> • ` : ''}
-                Totale: <b class="text-emerald-400 font-mono">${totalUnits} btg</b> (${e.packs > 0 ? `${e.packs} casse` : ''}${e.packs > 0 && e.units > 0 ? ' + ' : ''}${e.units > 0 ? `${e.units} sfuse` : ''})
+                Totale: <b class="text-emerald-400 font-mono">${totalUnits} ${uSuffix}</b> (${e.packs > 0 ? `${e.packs} casse` : ''}${e.packs > 0 && e.units > 0 ? ' + ' : ''}${e.units > 0 ? `${e.units} sfuse` : ''})
               </div>
             </div>
             <div class="text-right">
@@ -640,7 +687,7 @@
       m.classList.remove('flex');
     }
 
-function copyToClipboard() {
+    function copyToClipboard() {
       const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       const supName = curSup ? curSup.name : 'Fornitore';
@@ -673,6 +720,7 @@ function copyToClipboard() {
         alert(`Elenco per ${supName} copiato negli appunti!`);
       });
     }
+
     async function confirmOrder() {
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       alert(`Ordine per ${curSup?.name || 'Fornitore'} verificato con successo!`);
