@@ -6,6 +6,17 @@
   <title>Ordini & Verifiche - Bar Magazzino</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* Nasconde freccette native input number */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+  </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-3 pb-24">
 
@@ -55,7 +66,41 @@
 
     <!-- SEZIONE SPOT -->
     <div id="section-spot" class="hidden space-y-3">
-      <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
+      
+      <!-- Selettore Bozza Personale / Altri Utenti -->
+      <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 text-xs text-slate-300">
+          <span>👤</span>
+          <span class="font-semibold">Bozza di:</span>
+        </div>
+        <div class="flex items-center gap-1.5 flex-1 justify-end max-w-[240px]">
+          <select id="draft-owner-selector" onchange="onDraftOwnerChange()" class="w-full p-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-amber-300 font-medium focus:outline-none focus:border-amber-400">
+            <option value="me">La mia bozza (personale)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Banner Avviso Sola Lettura quando si visualizza la bozza di un collega con tasti Copia e Unisci -->
+      <div id="peer-draft-banner" class="hidden bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl flex flex-col gap-2.5 text-xs">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="font-bold text-amber-300">👁 Modalità Consultazione Bozza</span>
+            <p class="text-[11px] text-slate-400">Stai leggendo la bozza di un collega senza modificare la tua.</p>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono border border-amber-500/30">Solo Lettura</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-700/60">
+          <button onclick="clonePeersDraftToMine()" class="py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold rounded-lg text-xs border border-amber-500/30 transition active:scale-95 flex items-center justify-center gap-1">
+            <span>📥</span> Sostituisci la mia
+          </button>
+          <button onclick="mergePeersDraftToMine()" class="py-2 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition active:scale-95 flex items-center justify-center gap-1 shadow">
+            <span>➕</span> Unisci alla mia
+          </button>
+        </div>
+      </div>
+
+      <!-- Ricerca Articoli Spot -->
+      <div id="spot-search-box" class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
         <div class="flex items-center justify-between">
           <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
           <button onclick="clearSpotDraft()" id="btn-clear-draft" class="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition hidden">
@@ -73,7 +118,7 @@
 
       <!-- Barra informativa stato bozza -->
       <div id="spot-draft-status" class="text-[11px] text-slate-400 px-1 flex items-center justify-between">
-        <span id="spot-draft-indicator">💾 Autosalvataggio bozza attivo</span>
+        <span id="spot-draft-indicator">💾 Autosalvataggio attivo</span>
         <span id="spot-items-count" class="font-mono text-amber-400">0 articoli</span>
       </div>
 
@@ -134,12 +179,18 @@
     let suppliers = [];
     let checklists = [];
     let categories = [];
+    let profilesMap = new Map();
     let currentTab = 'checklist';
     let selectedSupplierId = '';
     
-    // Struttura mappa carrello: itemId => { item, packs, units, sortOrder, isDismissed }
-    let orderCart = new Map();
-    let currentMaxSortOrder = 0;
+    // Bozza personale
+    let mySpotCart = new Map();
+    let myMaxSortOrder = 0;
+
+    // Bozza attualmente visualizzata
+    let viewingUserId = 'me'; // 'me' oppure UUID collega
+    let displayedSpotCart = new Map();
+
     let saveTimeoutMap = new Map();
 
     const DEFAULT_CATEGORIES = [
@@ -213,7 +264,7 @@
           return;
         }
 
-        // 1. Carica categorie per filtro
+        // 1. Categorie
         try {
           const { data: catData } = await supabaseClient
             .from('item_categories')
@@ -228,7 +279,7 @@
         spotCatSel.innerHTML = '<option value="">Tutte le cat.</option>' + 
           categories.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
-        // 2. Carica Fornitori
+        // 2. Fornitori
         const { data: supData, error: supErr } = await supabaseClient
           .from('suppliers')
           .select('id, name')
@@ -236,7 +287,7 @@
         if (supErr) throw supErr;
         suppliers = supData || [];
 
-        // 3. Carica Articoli con relativi listini
+        // 3. Articoli con listini
         const { data: itemsData, error: itemsErr } = await supabaseClient
           .from('items')
           .select(`
@@ -266,7 +317,7 @@
         if (itemsErr) throw itemsErr;
         allItems = itemsData || [];
 
-        // 4. Carica Template Checklist
+        // 4. Template Checklist
         const { data: chkData } = await supabaseClient
           .from('checklists')
           .select('*')
@@ -275,11 +326,22 @@
 
         checklists = chkData || [];
 
+        // 5. Profili Utenti
+        try {
+          const { data: profs } = await supabaseClient.from('profiles').select('id, email, full_name');
+          (profs || []).forEach(p => profilesMap.set(p.id, p.full_name || p.email || 'Utente'));
+        } catch (e) {
+          console.warn('Lettura profiles limitata:', e);
+        }
+
         populateSupplierSelector();
         populateChecklistSelector();
 
-        // 5. Ripristina l'eventuale bozza Spot personale dal DB
-        await loadSpotDraftFromDB();
+        // 6. Carica la propria bozza dal DB
+        await loadMySpotDraftFromDB();
+        await populatePeerDraftsSelector();
+
+        displayedSpotCart = mySpotCart;
 
         document.getElementById('status-loading').classList.add('hidden');
         switchTab('checklist');
@@ -383,7 +445,7 @@
       }
 
       container.innerHTML = targetItems.map(item => {
-        const cartEntry = orderCart.get(item.id) || { item, packs: 0, units: 0, sortOrder: 0, isDismissed: false };
+        const cartEntry = displayedSpotCart.get(item.id) || { item, packs: 0, units: 0, sortOrder: 0, isDismissed: false };
         if (cartEntry.isDismissed) return '';
 
         const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
@@ -415,22 +477,39 @@
               </button>
             </div>
 
+            <!-- CONTROLLI QUANTITÀ CON INPUT DIRETTO -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
+                <!-- Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
                     <button onclick="changeQty('${item.id}', 'packs', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-amber-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>
-                    <span class="font-mono font-bold text-sm text-white" id="packs-${item.id}">${cartEntry.packs}</span>
+                    <input 
+                      type="number" 
+                      min="0"
+                      value="${cartEntry.packs}" 
+                      onfocus="this.select()"
+                      onchange="setQtyDirectly('${item.id}', 'packs', this.value)" 
+                      class="w-12 text-center bg-slate-900 text-white font-mono font-bold text-sm rounded border border-slate-700 py-0.5 focus:outline-none focus:border-amber-400"
+                    />
                     <button onclick="changeQty('${item.id}', 'packs', 1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-amber-400 font-bold text-base flex items-center justify-center active:scale-90">+</button>
                   </div>
                 </div>
 
+                <!-- Unità Sfuse -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
                     <button onclick="changeQty('${item.id}', 'units', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>
-                    <span class="font-mono font-bold text-sm text-white" id="units-${item.id}">${cartEntry.units}</span>
+                    <input 
+                      type="number" 
+                      min="0"
+                      value="${cartEntry.units}" 
+                      onfocus="this.select()"
+                      onchange="setQtyDirectly('${item.id}', 'units', this.value)" 
+                      class="w-12 text-center bg-slate-900 text-white font-mono font-bold text-sm rounded border border-slate-700 py-0.5 focus:outline-none focus:border-sky-400"
+                    />
                     <button onclick="changeQty('${item.id}', 'units', 1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">+</button>
                   </div>
                 </div>
@@ -450,21 +529,22 @@
 
     function dismissChecklistItem(itemId) {
       const item = allItems.find(i => i.id === itemId);
-      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: 0 };
+      const entry = displayedSpotCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: 0 };
       entry.isDismissed = true;
       entry.packs = 0;
       entry.units = 0;
-      orderCart.set(itemId, entry);
+      displayedSpotCart.set(itemId, entry);
       const card = document.getElementById(`chk-card-${itemId}`);
       if (card) card.remove();
+      if (viewingUserId === 'me') scheduleDraftSave(itemId);
       updateCartTotals();
     }
 
-    // ==========================================
-    // GESTIONE BOZZA PERSISTENTE CON PROGRESSIVO
-    // ==========================================
+    // ==========================================================
+    // GESTIONE BOZZA PERSISTENTE, INVERSA E CONDIVISA
+    // ==========================================================
 
-    async function loadSpotDraftFromDB() {
+    async function loadMySpotDraftFromDB() {
       if (!currentUserId) return;
       try {
         const { data: drafts, error } = await supabaseClient
@@ -475,17 +555,20 @@
           .order('sort_order', { ascending: true });
 
         if (error) {
-          console.warn('Errore lettura bozza order_drafts:', error);
+          console.warn('Errore lettura bozza:', error);
           return;
         }
+
+        mySpotCart.clear();
+        myMaxSortOrder = 0;
 
         if (drafts && drafts.length > 0) {
           drafts.forEach(d => {
             const item = allItems.find(i => i.id === d.item_id);
             if (item) {
               const sortOrd = d.sort_order || 0;
-              if (sortOrd > currentMaxSortOrder) currentMaxSortOrder = sortOrd;
-              orderCart.set(item.id, {
+              if (sortOrd > myMaxSortOrder) myMaxSortOrder = sortOrd;
+              mySpotCart.set(item.id, {
                 item,
                 packs: d.boxes || 0,
                 units: d.singles || 0,
@@ -496,11 +579,210 @@
           });
         }
       } catch (e) {
-        console.error('Eccezione ripristino bozza:', e);
+        console.error('Eccezione loadMySpotDraftFromDB:', e);
       }
     }
 
+    async function populatePeerDraftsSelector() {
+      const sel = document.getElementById('draft-owner-selector');
+      try {
+        const { data: peers, error } = await supabaseClient
+          .from('order_drafts')
+          .select('user_id')
+          .eq('order_type', 'spot');
+
+        if (error || !peers) return;
+
+        const distinctUserIds = [...new Set(peers.map(p => p.user_id))].filter(uid => uid !== currentUserId);
+
+        let optionsHtml = '<option value="me">La mia bozza (personale)</option>';
+        distinctUserIds.forEach(uid => {
+          const name = profilesMap.get(uid) || `Utente (${uid.substring(0, 5)})`;
+          optionsHtml += `<option value="${uid}">Bozza di ${name}</option>`;
+        });
+
+        sel.innerHTML = optionsHtml;
+        sel.value = viewingUserId;
+      } catch (e) {
+        console.warn('Errore caricamento lista colleghi:', e);
+      }
+    }
+
+    async function onDraftOwnerChange() {
+      const selVal = document.getElementById('draft-owner-selector').value;
+      viewingUserId = selVal;
+
+      const banner = document.getElementById('peer-draft-banner');
+      const searchBox = document.getElementById('spot-search-box');
+      const indicator = document.getElementById('spot-draft-indicator');
+
+      if (viewingUserId === 'me') {
+        displayedSpotCart = mySpotCart;
+        banner.classList.add('hidden');
+        searchBox.classList.remove('hidden');
+        indicator.textContent = '💾 Bozza personale (Autosalvataggio attivo)';
+        renderSpotCart();
+        updateCartTotals();
+      } else {
+        // Carica in sola lettura la bozza del collega selezionato
+        banner.classList.remove('hidden');
+        searchBox.classList.add('hidden');
+        indicator.textContent = '👁 Sola visualizzazione bozza collega';
+
+        const { data: peerDrafts } = await supabaseClient
+          .from('order_drafts')
+          .select('item_id, boxes, singles, sort_order')
+          .eq('user_id', viewingUserId)
+          .eq('order_type', 'spot')
+          .order('sort_order', { ascending: true });
+
+        const tempPeerCart = new Map();
+        (peerDrafts || []).forEach(d => {
+          const item = allItems.find(i => i.id === d.item_id);
+          if (item) {
+            tempPeerCart.set(item.id, {
+              item,
+              packs: d.boxes || 0,
+              units: d.singles || 0,
+              sortOrder: d.sort_order || 0,
+              isDismissed: false
+            });
+          }
+        });
+
+        displayedSpotCart = tempPeerCart;
+        renderSpotCart();
+        updateCartTotals();
+      }
+    }
+
+    // 1. CLONA / SOSTITUISCE LA BOZZA DEL COLLEGA NELLA PROPRIA
+    async function clonePeersDraftToMine() {
+      if (displayedSpotCart.size === 0) return;
+      if (!confirm('Vuoi SOSTITUIRE la tua bozza con quella del collega? I tuoi articoli attuali verranno sovrascritti.')) {
+        return;
+      }
+
+      // Svuota prima la propria bozza attuale su DB
+      await supabaseClient
+        .from('order_drafts')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('order_type', 'spot');
+
+      mySpotCart.clear();
+      myMaxSortOrder = 0;
+
+      const rowsToInsert = [];
+      displayedSpotCart.forEach((entry, itemId) => {
+        myMaxSortOrder++;
+        mySpotCart.set(itemId, {
+          item: entry.item,
+          packs: entry.packs,
+          units: entry.units,
+          sortOrder: myMaxSortOrder,
+          isDismissed: false
+        });
+
+        rowsToInsert.push({
+          user_id: currentUserId,
+          order_type: 'spot',
+          item_id: itemId,
+          boxes: entry.packs,
+          singles: entry.units,
+          sort_order: myMaxSortOrder,
+          updated_at: new Date().toISOString()
+        });
+      });
+
+      if (rowsToInsert.length > 0) {
+        await supabaseClient.from('order_drafts').insert(rowsToInsert);
+      }
+
+      switchToMyDraft('Bozza sostituita con successo!');
+    }
+
+    // 2. UNISCE LA BOZZA DEL COLLEGA ALLA PROPRIA (SOMMA QUANTITÀ ESISTENTI + INSERISCE NUOVI ARTICOLI)
+    async function mergePeersDraftToMine() {
+      if (displayedSpotCart.size === 0) return;
+      if (!confirm('Vuoi UNIRE la bozza del collega alla tua? Gli articoli già presenti sommeranno le loro quantità (casse e sfuse), mentre i nuovi articoli verranno aggiunti.')) {
+        return;
+      }
+
+      const rowsToUpsert = [];
+
+      displayedSpotCart.forEach((peerEntry, itemId) => {
+        let myEntry = mySpotCart.get(itemId);
+
+        if (myEntry) {
+          // Somma le quantità all'articolo già presente
+          myEntry.packs = (myEntry.packs || 0) + (peerEntry.packs || 0);
+          myEntry.units = (myEntry.units || 0) + (peerEntry.units || 0);
+          myEntry.isDismissed = false;
+          // Porta l'articolo unito in testa
+          myMaxSortOrder++;
+          myEntry.sortOrder = myMaxSortOrder;
+
+          mySpotCart.set(itemId, myEntry);
+
+          rowsToUpsert.push({
+            user_id: currentUserId,
+            order_type: 'spot',
+            item_id: itemId,
+            boxes: myEntry.packs,
+            singles: myEntry.units,
+            sort_order: myEntry.sortOrder,
+            updated_at: new Date().toISOString()
+          });
+        } else {
+          // Aggiunge il nuovo articolo alla mia bozza
+          myMaxSortOrder++;
+          const newEntry = {
+            item: peerEntry.item,
+            packs: peerEntry.packs,
+            units: peerEntry.units,
+            sortOrder: myMaxSortOrder,
+            isDismissed: false
+          };
+          mySpotCart.set(itemId, newEntry);
+
+          rowsToUpsert.push({
+            user_id: currentUserId,
+            order_type: 'spot',
+            item_id: itemId,
+            boxes: newEntry.packs,
+            singles: newEntry.units,
+            sort_order: newEntry.sortOrder,
+            updated_at: new Date().toISOString()
+          });
+        }
+      });
+
+      if (rowsToUpsert.length > 0) {
+        await supabaseClient.from('order_drafts').upsert(rowsToUpsert, {
+          onConflict: 'user_id, order_type, item_id'
+        });
+      }
+
+      switchToMyDraft('Bozza unita con successo alla tua!');
+    }
+
+    function switchToMyDraft(message) {
+      viewingUserId = 'me';
+      document.getElementById('draft-owner-selector').value = 'me';
+      displayedSpotCart = mySpotCart;
+      document.getElementById('peer-draft-banner').classList.add('hidden');
+      document.getElementById('spot-search-box').classList.remove('hidden');
+      document.getElementById('spot-draft-indicator').textContent = `💾 ${message}`;
+
+      renderSpotCart();
+      updateCartTotals();
+      alert(message);
+    }
+
     function scheduleDraftSave(itemId) {
+      if (viewingUserId !== 'me') return;
+
       if (saveTimeoutMap.has(itemId)) {
         clearTimeout(saveTimeoutMap.get(itemId));
       }
@@ -508,14 +790,14 @@
       const timer = setTimeout(async () => {
         saveTimeoutMap.delete(itemId);
         await persistDraftItem(itemId);
-      }, 350);
+      }, 300);
 
       saveTimeoutMap.set(itemId, timer);
     }
 
     async function persistDraftItem(itemId) {
-      if (!currentUserId) return;
-      const entry = orderCart.get(itemId);
+      if (!currentUserId || viewingUserId !== 'me') return;
+      const entry = mySpotCart.get(itemId);
       if (!entry) return;
 
       const indicator = document.getElementById('spot-draft-indicator');
@@ -551,11 +833,13 @@
       }
     }
 
+    // Modifica quantità con click +/-
     function changeQty(itemId, type, delta) {
+      if (viewingUserId !== 'me') return;
       const item = allItems.find(i => i.id === itemId);
       if (!item) return;
 
-      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: ++currentMaxSortOrder, isDismissed: false };
+      const entry = mySpotCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: ++myMaxSortOrder, isDismissed: false };
       entry.isDismissed = false;
 
       if (type === 'packs') {
@@ -564,21 +848,34 @@
         entry.units = Math.max(0, (entry.units || 0) + delta);
       }
 
-      orderCart.set(itemId, entry);
-
-      const pEl = document.getElementById(`packs-${itemId}`);
-      const uEl = document.getElementById(`units-${itemId}`);
-      const totEl = document.getElementById(`total-units-${itemId}`);
-      const packSize = item.units_per_pack || 1;
-      const totalPieces = (entry.packs * packSize) + entry.units;
-
-      if (pEl) pEl.textContent = entry.packs;
-      if (uEl) uEl.textContent = entry.units;
-      if (totEl) totEl.textContent = totalPieces;
-
+      mySpotCart.set(itemId, entry);
       scheduleDraftSave(itemId);
+      renderSpotCart();
       updateCartTotals();
-      if (currentTab === 'spot') renderSpotCart();
+    }
+
+    // Modifica quantità diretta da tastiera numerica
+    function setQtyDirectly(itemId, type, rawValue) {
+      if (viewingUserId !== 'me') return;
+      const val = parseInt(rawValue, 10);
+      const safeVal = isNaN(val) || val < 0 ? 0 : val;
+
+      const item = allItems.find(i => i.id === itemId);
+      if (!item) return;
+
+      const entry = mySpotCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: ++myMaxSortOrder, isDismissed: false };
+      entry.isDismissed = false;
+
+      if (type === 'packs') {
+        entry.packs = safeVal;
+      } else {
+        entry.units = safeVal;
+      }
+
+      mySpotCart.set(itemId, entry);
+      scheduleDraftSave(itemId);
+      renderSpotCart();
+      updateCartTotals();
     }
 
     function filterSpotItems() {
@@ -635,23 +932,22 @@
     }
 
     function addSpotItem(itemId) {
+      if (viewingUserId !== 'me') return;
       const item = allItems.find(i => i.id === itemId);
       if (!item) return;
 
-      let entry = orderCart.get(itemId);
+      let entry = mySpotCart.get(itemId);
       if (!entry) {
-        currentMaxSortOrder += 1;
-        entry = { item, packs: 1, units: 0, sortOrder: currentMaxSortOrder, isDismissed: false };
+        myMaxSortOrder += 1;
+        entry = { item, packs: 1, units: 0, sortOrder: myMaxSortOrder, isDismissed: false };
       } else {
         entry.isDismissed = false;
         entry.packs = (entry.packs || 0) + 1;
-        if (!entry.sortOrder) {
-          currentMaxSortOrder += 1;
-          entry.sortOrder = currentMaxSortOrder;
-        }
+        myMaxSortOrder += 1;
+        entry.sortOrder = myMaxSortOrder;
       }
 
-      orderCart.set(itemId, entry);
+      mySpotCart.set(itemId, entry);
 
       const input = document.getElementById('spot-search');
       if (input) input.value = '';
@@ -667,13 +963,14 @@
     }
 
     async function removeSpotItem(itemId) {
-      const entry = orderCart.get(itemId);
+      if (viewingUserId !== 'me') return;
+      const entry = mySpotCart.get(itemId);
       if (entry) {
         entry.packs = 0;
         entry.units = 0;
         entry.isDismissed = true;
       }
-      orderCart.delete(itemId);
+      mySpotCart.delete(itemId);
 
       if (currentUserId) {
         try {
@@ -693,11 +990,11 @@
     }
 
     async function clearSpotDraft() {
-      if (!confirm('Vuoi svuotare tutti gli articoli presenti in questa bozza spot?')) return;
+      if (viewingUserId !== 'me') return;
+      if (!confirm('Vuoi svuotare tutti gli articoli presenti nella tua bozza spot?')) return;
 
-      const activeIds = Array.from(orderCart.keys());
-      activeIds.forEach(id => orderCart.delete(id));
-      currentMaxSortOrder = 0;
+      mySpotCart.clear();
+      myMaxSortOrder = 0;
 
       if (currentUserId) {
         try {
@@ -720,10 +1017,10 @@
       const clearBtn = document.getElementById('btn-clear-draft');
       const countEl = document.getElementById('spot-items-count');
 
-      // Ordina rigidamente in base a sortOrder (progressivo di inserimento)
-      const activeEntries = Array.from(orderCart.values())
+      // ORDINAMENTO INVERSO: l'ultimo aggiunto (sortOrder più alto) sta in cima (B - A)
+      const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
 
       if (countEl) countEl.textContent = `${activeEntries.length} articoli in bozza`;
 
@@ -733,7 +1030,12 @@
         return;
       }
 
-      if (clearBtn) clearBtn.classList.remove('hidden');
+      if (clearBtn) {
+        if (viewingUserId === 'me') clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+
+      const isReadOnly = viewingUserId !== 'me';
 
       container.innerHTML = activeEntries.map(e => {
         const item = e.item;
@@ -761,26 +1063,47 @@
                     : `• <span class="text-slate-500 italic">prezzo non disp.</span>`}
                 </div>
               </div>
-              <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0 transition">✕</button>
+              ${!isReadOnly ? `
+                <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0 transition">✕</button>
+              ` : ''}
             </div>
 
+            <!-- CONTROLLI QUANTITÀ CON INPUT DIRETTO E AUTO-SELEZIONE -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
+                <!-- Box Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
-                    <button onclick="changeQty('${item.id}', 'packs', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-amber-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>
-                    <span class="font-mono font-bold text-sm text-white">${e.packs}</span>
-                    <button onclick="changeQty('${item.id}', 'packs', 1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-amber-400 font-bold text-base flex items-center justify-center active:scale-90">+</button>
+                    ${!isReadOnly ? `<button onclick="changeQty('${item.id}', 'packs', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-amber-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>` : '<div></div>'}
+                    <input 
+                      type="number" 
+                      min="0"
+                      value="${e.packs}" 
+                      ${isReadOnly ? 'disabled' : ''}
+                      onfocus="this.select()"
+                      onchange="setQtyDirectly('${item.id}', 'packs', this.value)" 
+                      class="w-14 text-center bg-slate-900 text-white font-mono font-bold text-sm rounded border border-slate-700 py-0.5 focus:outline-none focus:border-amber-400 disabled:opacity-80"
+                    />
+                    ${!isReadOnly ? `<button onclick="changeQty('${item.id}', 'packs', 1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-amber-400 font-bold text-base flex items-center justify-center active:scale-90">+</button>` : '<div></div>'}
                   </div>
                 </div>
 
+                <!-- Box Pezzi Sfusi -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
-                    <button onclick="changeQty('${item.id}', 'units', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>
-                    <span class="font-mono font-bold text-sm text-white">${e.units}</span>
-                    <button onclick="changeQty('${item.id}', 'units', 1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">+</button>
+                    ${!isReadOnly ? `<button onclick="changeQty('${item.id}', 'units', -1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">-</button>` : '<div></div>'}
+                    <input 
+                      type="number" 
+                      min="0"
+                      value="${e.units}" 
+                      ${isReadOnly ? 'disabled' : ''}
+                      onfocus="this.select()"
+                      onchange="setQtyDirectly('${item.id}', 'units', this.value)" 
+                      class="w-14 text-center bg-slate-900 text-white font-mono font-bold text-sm rounded border border-slate-700 py-0.5 focus:outline-none focus:border-sky-400 disabled:opacity-80"
+                    />
+                    ${!isReadOnly ? `<button onclick="changeQty('${item.id}', 'units', 1)" class="w-7 h-7 bg-slate-700 hover:bg-slate-600 rounded text-sky-400 font-bold text-base flex items-center justify-center active:scale-90">+</button>` : '<div></div>'}
                   </div>
                 </div>
               </div>
@@ -801,7 +1124,7 @@
       let totalCost = 0;
       let distinctItems = 0;
 
-      for (const [itemId, entry] of orderCart.entries()) {
+      for (const [itemId, entry] of displayedSpotCart.entries()) {
         if (entry.isDismissed) continue;
         const totalUnits = (entry.packs * (entry.item?.units_per_pack || 1)) + entry.units;
         if (totalUnits > 0) {
@@ -818,9 +1141,9 @@
     }
 
     function openSummaryModal() {
-      const activeEntries = Array.from(orderCart.values())
+      const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
 
       if (activeEntries.length === 0) {
         alert('Nessun articolo selezionato con quantità maggiore di zero.');
@@ -873,9 +1196,9 @@
     }
 
     function copyToClipboard() {
-      const activeEntries = Array.from(orderCart.values())
+      const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
 
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       const supName = curSup ? curSup.name : 'Fornitore';
@@ -912,8 +1235,7 @@
     async function confirmOrder() {
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       
-      // Svuota la bozza temporanea su DB dato che l'ordine è stato finalizzato
-      if (currentUserId) {
+      if (currentUserId && viewingUserId === 'me') {
         try {
           await supabaseClient
             .from('order_drafts')
@@ -928,9 +1250,10 @@
       alert(`Ordine per ${curSup?.name || 'Fornitore'} verificato con successo!`);
       closeSummaryModal();
       
-      // Svuota anche il carrello in memoria e ricarica
-      orderCart.clear();
-      currentMaxSortOrder = 0;
+      mySpotCart.clear();
+      myMaxSortOrder = 0;
+      displayedSpotCart.clear();
+
       if (currentTab === 'spot') renderSpotCart();
       else loadChecklistItems();
       updateCartTotals();
@@ -941,10 +1264,14 @@
     window.loadChecklistItems = loadChecklistItems;
     window.dismissChecklistItem = dismissChecklistItem;
     window.changeQty = changeQty;
+    window.setQtyDirectly = setQtyDirectly;
     window.filterSpotItems = filterSpotItems;
     window.addSpotItem = addSpotItem;
     window.removeSpotItem = removeSpotItem;
     window.clearSpotDraft = clearSpotDraft;
+    window.onDraftOwnerChange = onDraftOwnerChange;
+    window.clonePeersDraftToMine = clonePeersDraftToMine;
+    window.mergePeersDraftToMine = mergePeersDraftToMine;
     window.openSummaryModal = openSummaryModal;
     window.closeSummaryModal = closeSummaryModal;
     window.copyToClipboard = copyToClipboard;
