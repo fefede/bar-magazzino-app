@@ -69,7 +69,7 @@
     <!-- SEZIONE SPOT -->
     <div id="section-spot" class="hidden space-y-3">
       
-      <!-- Selettore Bozza Personale / Altri Utenti con Nomi / Email leggibili -->
+      <!-- Selettore Bozza Personale / Altri Utenti -->
       <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-xs text-slate-300">
           <span>👤</span>
@@ -199,7 +199,7 @@
         </div>
         <div class="pt-2 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed">
           • Verrà creata una voce nello Storico con prezzi congelati.<br>
-          • <strong class="text-amber-300">La bozza attuale NON verrà cancellata</strong> e rimarrà intatta a schermo.
+          • <strong class="text-amber-300">La bozza attuale verrà archiviata e azzerata</strong> per il prossimo ordine.
         </div>
       </div>
 
@@ -1364,14 +1364,31 @@
 
         if (itemsErr) throw itemsErr;
 
-        // 3. Chiusura modali (NESSUNA cancellazione della bozza, rimane intatta)
+        // 3. PULIZIA AUTOMATICA DELLA BOZZA SPOT (su Supabase e in memoria)
+        if (currentUserId && viewingUserId === 'me') {
+          await supabaseClient
+            .from('order_drafts')
+            .delete()
+            .eq('user_id', currentUserId)
+            .eq('order_type', 'spot');
+
+          mySpotCart.clear();
+          myMaxSortOrder = 0;
+          displayedSpotCart.clear();
+        }
+
+        // 4. Chiusura modali e refresh vista
         closeConfirmHistoryModal();
         closeSummaryModal();
 
-        const indicator = document.getElementById('spot-draft-indicator');
-        if (indicator) indicator.textContent = '✅ Ordine archiviato nello Storico!';
+        if (currentTab === 'spot') renderSpotCart();
+        else loadChecklistItems();
+        updateCartTotals();
 
-        alert(`✓ Ordine per ${curSup?.name || 'Fornitore'} storicizzato con successo!\n\nI dati sono stati archiviati permanentemente nello storico. La tua bozza rimane aperta a schermo per qualsiasi altra consultazione o modifica.`);
+        const indicator = document.getElementById('spot-draft-indicator');
+        if (indicator) indicator.textContent = '✅ Ordine archiviato! Bozza azzerata.';
+
+        alert(`✓ Ordine per ${curSup?.name || 'Fornitore'} archiviato nello Storico!\nLa bozza spot è stata svuotata per il prossimo ordine.`);
       } catch (err) {
         console.error('Errore durante la storicizzazione:', err);
         alert('Errore durante il salvataggio dello storico: ' + err.message);
