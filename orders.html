@@ -110,7 +110,7 @@
         </div>
       </div>
 
-      <!-- Ricerca Articoli Spot -->
+      <!-- Ricerca Articoli Spot con pulsante X integrato -->
       <div id="spot-search-box" class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
         <div class="flex items-center justify-between">
           <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
@@ -119,7 +119,6 @@
           </button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <!-- Campo ricerca con pulsante X integrato a destra -->
           <div class="sm:col-span-2 relative flex items-center">
             <input type="text" id="spot-search" oninput="onSpotSearchInput()" placeholder="Es. Campari, Coca-Cola..." class="w-full p-2 pr-7 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
             <button onclick="clearSpotSearch()" id="btn-clear-search" class="absolute right-2 text-slate-400 hover:text-white text-xs font-bold hidden px-1" title="Pulisci ricerca">✕</button>
@@ -130,7 +129,7 @@
         </div>
         <div id="spot-search-results" class="max-h-56 overflow-y-auto space-y-1 pt-1 hidden"></div>
       </div>
-      
+
       <!-- Barra informativa stato bozza -->
       <div id="spot-draft-status" class="text-[11px] text-slate-400 px-1 flex items-center justify-between">
         <span id="spot-draft-indicator">💾 Autosalvataggio attivo</span>
@@ -425,7 +424,7 @@
         }
 
         document.getElementById('status-loading').classList.add('hidden');
-        switchTab('spot'); // Apre direttamente in spot quando si modifica un ordine
+        switchTab('spot');
       } catch (err) {
         console.error('Errore avvio:', err);
         alert('Errore caricamento: ' + err.message);
@@ -956,7 +955,7 @@
       updateCartTotals();
     }
 
-function onSpotSearchInput() {
+    function onSpotSearchInput() {
       const input = document.getElementById('spot-search');
       const clearBtn = document.getElementById('btn-clear-search');
       if (input && clearBtn) {
@@ -1049,15 +1048,40 @@ function onSpotSearchInput() {
 
       mySpotCart.set(itemId, entry);
 
-      // NOTA: Non puliamo più l'input di ricerca (`spot-search`) per consentire aggiunte multiple rapide.
-      // I risultati rimangono visibili e aggiornati.
+      // NON svuotiamo la ricerca per consentire click multipli rapidi sulla stessa parola chiave
 
       scheduleDraftSave(itemId);
       renderSpotCart();
       updateCartTotals();
     }
 
-    
+    async function removeSpotItem(itemId) {
+      if (viewingUserId !== 'me') return;
+      const entry = mySpotCart.get(itemId);
+      if (entry) {
+        entry.packs = 0;
+        entry.units = 0;
+        entry.isDismissed = true;
+      }
+      mySpotCart.delete(itemId);
+
+      if (currentUserId) {
+        try {
+          await supabaseClient
+            .from('order_drafts')
+            .delete()
+            .eq('user_id', currentUserId)
+            .eq('order_type', 'spot')
+            .eq('item_id', itemId);
+        } catch (e) {
+          console.warn('Errore cancellazione DB riga:', e);
+        }
+      }
+
+      renderSpotCart();
+      updateCartTotals();
+    }
+
     async function clearSpotDraft() {
       if (viewingUserId !== 'me') return;
       if (!confirm('Vuoi svuotare tutti gli articoli presenti nella tua bozza spot?')) return;
@@ -1260,7 +1284,8 @@ function onSpotSearchInput() {
       m.classList.remove('flex');
     }
 
-function copyToClipboard() {
+    // Funzione copia formattata con indentazione precisa e formato pulito
+    function copyToClipboard() {
       const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
         .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
@@ -1274,7 +1299,6 @@ function copyToClipboard() {
         const item = e.item;
         const itemName = item.name;
         
-        // Formato e contenitore es: (33 cl - Lattina)
         const formatVal = item.format_value ? item.format_value : '';
         const formatUnit = item.format_unit ? item.format_unit : '';
         const unitType = item.unit_type ? item.unit_type : '';
@@ -1296,11 +1320,10 @@ function copyToClipboard() {
           const pLabel = e.packs === 1 ? '1     cassa' : `${String(e.packs).padEnd(5, ' ')} casse`;
           qtyStr = `${pLabel} di ${itemName} ${details}`;
         } else if (e.packs === 0 && e.units > 0) {
-          const uSuffix = getUnitSuffix(item.unit_type);
           qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse di ${itemName} ${details}`;
         }
 
-        text += `  ${qtyStr}\n`;
+        text += `• ${qtyStr}\n`;
       });
 
       const total = document.getElementById('summary-total-net').textContent;
@@ -1310,6 +1333,7 @@ function copyToClipboard() {
         alert(`✓ Elenco per ${supName} copiato negli appunti!\nPuoi incollarlo su WhatsApp.`);
       });
     }
+
     // ==========================================
     // MODAL DI CONFERMA E STORICIZZAZIONE / AGGIORNAMENTO
     // ==========================================
@@ -1363,7 +1387,6 @@ function copyToClipboard() {
         let targetOrderId = editingOrderId;
 
         if (editingOrderId) {
-          // MODIFICA: Aggiorna l'ordine esistente su se stesso
           const { error: updErr } = await supabaseClient
             .from('orders')
             .update({
@@ -1375,7 +1398,6 @@ function copyToClipboard() {
 
           if (updErr) throw updErr;
 
-          // Rimuove le vecchie righe e inserisce le nuove
           const { error: delErr } = await supabaseClient
             .from('order_items')
             .delete()
@@ -1383,7 +1405,6 @@ function copyToClipboard() {
 
           if (delErr) throw delErr;
         } else {
-          // NUOVO ORDINE: Inserisce la testata
           const { data: orderData, error: orderErr } = await supabaseClient
             .from('orders')
             .insert({
@@ -1400,7 +1421,6 @@ function copyToClipboard() {
           targetOrderId = orderData.id;
         }
 
-        // Inserimento righe congelate
         const orderItemsToInsert = activeEntries.map(e => {
           const packSize = e.item.units_per_pack || 1;
           const totalUnits = (e.packs * packSize) + e.units;
@@ -1426,11 +1446,9 @@ function copyToClipboard() {
 
         if (itemsErr) throw itemsErr;
 
-        // Pulisci eventuale sessione di modifica
         sessionStorage.removeItem('editing_order_id');
         sessionStorage.removeItem('editing_supplier_id');
 
-        // Pulizia della bozza spot
         if (currentUserId && viewingUserId === 'me') {
           await supabaseClient
             .from('order_drafts')
@@ -1447,8 +1465,6 @@ function copyToClipboard() {
         closeSummaryModal();
 
         alert(editingOrderId ? '✓ Ordine aggiornato con successo nello Storico!' : `✓ Ordine per ${curSup?.name || 'Fornitore'} archiviato nello Storico!`);
-        
-        // Reindirizza allo storico per visualizzare il risultato aggiornato
         window.location.href = 'history.html';
       } catch (err) {
         console.error('Errore salvataggio storico:', err);
@@ -1465,9 +1481,9 @@ function copyToClipboard() {
     window.dismissChecklistItem = dismissChecklistItem;
     window.changeQty = changeQty;
     window.setQtyDirectly = setQtyDirectly;
-    window.filterSpotItems = filterSpotItems;
     window.onSpotSearchInput = onSpotSearchInput;
-    window.clearSpotSearch = clearSpotSearch;    
+    window.clearSpotSearch = clearSpotSearch;
+    window.filterSpotItems = filterSpotItems;
     window.addSpotItem = addSpotItem;
     window.removeSpotItem = removeSpotItem;
     window.clearSpotDraft = clearSpotDraft;
