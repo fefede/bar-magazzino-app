@@ -137,7 +137,7 @@
       </div>
 
       <div id="spot-cart-container" class="space-y-2.5">
-        <p class="text-slate-500 text-xs text-center py-6">Nessun articolo aggiunto all'ordine spot.</p>
+        <p class="text-slate-500 text-xs text-center py-8">Nessun articolo aggiunto all'ordine spot.<br><span class="text-[11px] text-slate-600">Cerca un prodotto qui sopra per aggiungerlo.</span></p>
       </div>
     </div>
   </div>
@@ -551,8 +551,7 @@
               <div>
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-bold text-slate-200 text-sm">${item.name}</span>
-                  ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
-                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">${item.category}</span>
+                  ${item.unit_type ? `<span class="text-[10px] px-1.5 py-0.2 bg-slate-900 text-slate-300 font-mono rounded border border-slate-700">${item.format_value ? item.format_value + ' ' + (item.format_unit || '') + ' - ' : ''}${item.unit_type}</span>` : ''}
                 </div>
                 <div class="text-[11px] text-slate-400 mt-1">
                   ${supInfo.hasPrice 
@@ -1002,7 +1001,6 @@
         resContainer.innerHTML = '<div class="p-2.5 text-slate-400 text-xs bg-slate-900 rounded-lg border border-slate-700">Nessun articolo trovato</div>';
       } else {
         resContainer.innerHTML = matches.map(i => {
-          const format = i.format_value ? `${i.format_value} ${i.format_unit || ''}` : '';
           const supInfo = getSupplierInfo(i);
           const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, i.format_value, i.format_unit) : null;
           const uSuffix = getUnitSuffix(i.unit_type);
@@ -1012,7 +1010,6 @@
               <div>
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
-                  ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
                   ${i.unit_type ? `<span class="text-[10px] px-1.5 py-0.2 bg-slate-800 text-slate-300 font-mono rounded border border-slate-700">${i.format_value ? i.format_value + ' ' + (i.format_unit || '') + ' - ' : ''}${i.unit_type}</span>` : ''}
                 </div>
                 <div class="text-[10px] text-slate-400 mt-0.5">
@@ -1047,8 +1044,6 @@
       }
 
       mySpotCart.set(itemId, entry);
-
-      // NON svuotiamo la ricerca per consentire click multipli rapidi sulla stessa parola chiave
 
       scheduleDraftSave(itemId);
       renderSpotCart();
@@ -1131,7 +1126,6 @@
 
       container.innerHTML = activeEntries.map(e => {
         const item = e.item;
-        const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const packSize = item.units_per_pack || 1;
         const supInfo = getSupplierInfo(item);
         const unitRate = supInfo.hasPrice ? calculateUnitRate(supInfo.priceSingle, item.format_value, item.format_unit) : null;
@@ -1145,7 +1139,6 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
-                  ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
                   ${item.unit_type ? `<span class="text-[10px] px-1.5 py-0.2 bg-slate-900 text-slate-300 font-mono rounded border border-slate-700">${item.format_value ? item.format_value + ' ' + (item.format_unit || '') + ' - ' : ''}${item.unit_type}</span>` : ''}
                 </div>
                 <div class="text-[11px] text-slate-400 mt-0.5">
@@ -1159,7 +1152,7 @@
                 <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0 transition">✕</button>
               ` : ''}
             </div>
-            
+
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
@@ -1284,7 +1277,6 @@
       m.classList.remove('flex');
     }
 
-    // Funzione copia formattata con indentazione precisa e formato pulito
     function copyToClipboard() {
       const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
@@ -1333,10 +1325,6 @@
         alert(`✓ Elenco per ${supName} copiato negli appunti!\nPuoi incollarlo su WhatsApp.`);
       });
     }
-
-    // ==========================================
-    // MODAL DI CONFERMA E STORICIZZAZIONE / AGGIORNAMENTO
-    // ==========================================
 
     function openConfirmHistoryModal() {
       const activeEntries = Array.from(displayedSpotCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
