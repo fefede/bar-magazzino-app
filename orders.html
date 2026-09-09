@@ -1010,10 +1010,10 @@
           return `
             <div onclick="addSpotItem('${i.id}')" class="p-2.5 bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer border border-slate-700 flex items-center justify-between transition">
               <div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
-                  ${format ? `<span class="text-[10px] text-amber-300">(${format})</span>` : ''}
-                  <span class="text-[9px] px-1 rounded bg-slate-800 text-slate-400">${i.category}</span>
+                  ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
+                  ${i.unit_type ? `<span class="text-[10px] px-1.5 py-0.2 bg-slate-800 text-slate-300 font-mono rounded border border-slate-700">${i.format_value ? i.format_value + ' ' + (i.format_unit || '') + ' - ' : ''}${i.unit_type}</span>` : ''}
                 </div>
                 <div class="text-[10px] text-slate-400 mt-0.5">
                   ${supInfo.hasPrice 
@@ -1022,7 +1022,7 @@
                   ${supInfo.sku ? `• Cod: ${supInfo.sku}` : ''}
                 </div>
               </div>
-              <span class="text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">+ 1 cassa</span>
+              <span class="text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 shrink-0">+ 1 cassa</span>
             </div>
           `;
         }).join('');
@@ -1146,7 +1146,7 @@
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
                   ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
-                  <span class="text-[9px] px-1 rounded bg-slate-900 text-slate-400 border border-slate-700">${item.category}</span>
+                  ${item.unit_type ? `<span class="text-[10px] px-1.5 py-0.2 bg-slate-900 text-slate-300 font-mono rounded border border-slate-700">${item.format_value ? item.format_value + ' ' + (item.format_unit || '') + ' - ' : ''}${item.unit_type}</span>` : ''}
                 </div>
                 <div class="text-[11px] text-slate-400 mt-0.5">
                   Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
@@ -1159,7 +1159,7 @@
                 <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0 transition">✕</button>
               ` : ''}
             </div>
-
+            
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
