@@ -28,8 +28,17 @@
         <p class="text-[11px] text-slate-400">Gestione ordini per singolo fornitore</p>
       </div>
       <div class="flex items-center gap-2">
-        <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Dashboard</a>
+        <a href="history.html" class="text-xs text-amber-400 hover:text-amber-300 py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-amber-500/30 transition">📦 Storico</a>
+        <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Dashboard</a>
       </div>
+    </div>
+
+    <!-- BANNER MODALITÀ MODIFICA ATTIVA -->
+    <div id="editing-mode-banner" class="hidden bg-amber-500/20 border border-amber-500/40 p-2.5 rounded-xl flex items-center justify-between text-xs">
+      <div class="text-amber-300 font-semibold">
+        ✏️ Stai modificando un ordine esistente dello Storico
+      </div>
+      <button onclick="cancelEditingMode()" class="text-slate-400 hover:text-white text-xs underline">Annulla</button>
     </div>
 
     <!-- SELETTORE FORNITORE -->
@@ -163,7 +172,7 @@
           <button onclick="copyToClipboard()" class="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5">
             📋 Copia Elenco
           </button>
-          <button onclick="openConfirmHistoryModal()" class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow">
+          <button onclick="openConfirmHistoryModal()" id="btn-open-history-modal" class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow">
             📦 Storicizza Ordine
           </button>
         </div>
@@ -179,7 +188,7 @@
           📦
         </div>
         <div>
-          <h3 class="font-bold text-white text-sm">Storicizzare questo ordine?</h3>
+          <h3 class="font-bold text-white text-sm" id="hist-modal-title">Storicizzare questo ordine?</h3>
           <p class="text-[11px] text-slate-400 mt-0.5">Archiviazione permanente per verifica alla consegna merci.</p>
         </div>
       </div>
@@ -198,7 +207,7 @@
           <span class="font-semibold text-slate-200" id="hist-items-count"></span>
         </div>
         <div class="pt-2 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed">
-          • Verrà creata una voce nello Storico con prezzi congelati.<br>
+          • Verrà registrato nello Storico con prezzi congelati.<br>
           • <strong class="text-amber-300">La bozza attuale verrà archiviata e azzerata</strong> per il prossimo ordine.
         </div>
       </div>
@@ -379,7 +388,7 @@
 
         checklists = chkData || [];
 
-        // 5. Profili Utenti (recupero full_name ed email per leggibilità)
+        // 5. Profili Utenti
         try {
           const { data: profs } = await supabaseClient.from('profiles').select('id, email, full_name');
           (profs || []).forEach(p => {
@@ -399,11 +408,32 @@
 
         displayedSpotCart = mySpotCart;
 
+        // Controlla se siamo in modalità modifica ordine da storico
+        const editingOrderId = sessionStorage.getItem('editing_order_id');
+        const editingSupplierId = sessionStorage.getItem('editing_supplier_id');
+        if (editingOrderId && editingSupplierId) {
+          document.getElementById('editing-mode-banner').classList.remove('hidden');
+          const sel = document.getElementById('supplier-selector');
+          if (sel) {
+            sel.value = editingSupplierId;
+            selectedSupplierId = editingSupplierId;
+          }
+        }
+
         document.getElementById('status-loading').classList.add('hidden');
-        switchTab('checklist');
+        switchTab('spot'); // Apre direttamente in spot quando si modifica un ordine
       } catch (err) {
         console.error('Errore avvio:', err);
         alert('Errore caricamento: ' + err.message);
+      }
+    }
+
+    function cancelEditingMode() {
+      if (confirm('Vuoi annullare la modifica di questo ordine?')) {
+        sessionStorage.removeItem('editing_order_id');
+        sessionStorage.removeItem('editing_supplier_id');
+        document.getElementById('editing-mode-banner').classList.add('hidden');
+        window.location.href = 'history.html';
       }
     }
 
@@ -533,10 +563,8 @@
               </button>
             </div>
 
-            <!-- CONTROLLI QUANTITÀ CON INPUT DIRETTO -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
-                <!-- Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
@@ -553,7 +581,6 @@
                   </div>
                 </div>
 
-                <!-- Unità Sfuse -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
@@ -1114,10 +1141,8 @@
               ` : ''}
             </div>
 
-            <!-- CONTROLLI QUANTITÀ CON INPUT DIRETTO -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
-                <!-- Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
@@ -1135,7 +1160,6 @@
                   </div>
                 </div>
 
-                <!-- Pezzi Sfusi -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
@@ -1279,7 +1303,7 @@
     }
 
     // ==========================================
-    // POPUP DI CONFERMA E STORICIZZAZIONE
+    // MODAL DI CONFERMA E STORICIZZAZIONE / AGGIORNAMENTO
     // ==========================================
 
     function openConfirmHistoryModal() {
@@ -1289,7 +1313,10 @@
         return;
       }
 
+      const editingOrderId = sessionStorage.getItem('editing_order_id');
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
+
+      document.getElementById('hist-modal-title').textContent = editingOrderId ? 'Aggiornare questo ordine?' : 'Storicizzare questo ordine?';
       document.getElementById('hist-sup-name').textContent = curSup ? curSup.name : 'Fornitore';
       document.getElementById('hist-total-net').textContent = document.getElementById('summary-total-net').textContent;
       document.getElementById('hist-items-count').textContent = `${activeEntries.length} referenze`;
@@ -1308,7 +1335,7 @@
     async function executeSaveHistoryOrder() {
       const btn = document.getElementById('btn-do-save-history');
       btn.disabled = true;
-      btn.textContent = 'Archiviazione in corso...';
+      btn.textContent = 'Salvataggio in corso...';
 
       const activeEntries = Array.from(displayedSpotCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
@@ -1322,23 +1349,50 @@
         grandTotal += totalUnits * supInfo.priceSingle;
       });
 
+      const editingOrderId = sessionStorage.getItem('editing_order_id');
+
       try {
-        // 1. Inserimento Testata Ordine
-        const { data: orderData, error: orderErr } = await supabaseClient
-          .from('orders')
-          .insert({
-            user_id: currentUserId,
-            supplier_id: selectedSupplierId,
-            status: 'inviato',
-            total_net: grandTotal,
-            notes: notes
-          })
-          .select()
-          .single();
+        let targetOrderId = editingOrderId;
 
-        if (orderErr) throw orderErr;
+        if (editingOrderId) {
+          // MODIFICA: Aggiorna l'ordine esistente su se stesso
+          const { error: updErr } = await supabaseClient
+            .from('orders')
+            .update({
+              supplier_id: selectedSupplierId,
+              total_net: grandTotal,
+              notes: notes
+            })
+            .eq('id', editingOrderId);
 
-        // 2. Inserimento Righe con dati congelati
+          if (updErr) throw updErr;
+
+          // Rimuove le vecchie righe e inserisce le nuove
+          const { error: delErr } = await supabaseClient
+            .from('order_items')
+            .delete()
+            .eq('order_id', editingOrderId);
+
+          if (delErr) throw delErr;
+        } else {
+          // NUOVO ORDINE: Inserisce la testata
+          const { data: orderData, error: orderErr } = await supabaseClient
+            .from('orders')
+            .insert({
+              user_id: currentUserId,
+              supplier_id: selectedSupplierId,
+              status: 'inviato',
+              total_net: grandTotal,
+              notes: notes
+            })
+            .select()
+            .single();
+
+          if (orderErr) throw orderErr;
+          targetOrderId = orderData.id;
+        }
+
+        // Inserimento righe congelate
         const orderItemsToInsert = activeEntries.map(e => {
           const packSize = e.item.units_per_pack || 1;
           const totalUnits = (e.packs * packSize) + e.units;
@@ -1346,7 +1400,7 @@
           const subtotal = totalUnits * supInfo.priceSingle;
 
           return {
-            order_id: orderData.id,
+            order_id: targetOrderId,
             item_id: e.item.id,
             item_name: e.item.name,
             supplier_sku: supInfo.sku || null,
@@ -1364,7 +1418,11 @@
 
         if (itemsErr) throw itemsErr;
 
-        // 3. PULIZIA AUTOMATICA DELLA BOZZA SPOT (su Supabase e in memoria)
+        // Pulisci eventuale sessione di modifica
+        sessionStorage.removeItem('editing_order_id');
+        sessionStorage.removeItem('editing_supplier_id');
+
+        // Pulizia della bozza spot
         if (currentUserId && viewingUserId === 'me') {
           await supabaseClient
             .from('order_drafts')
@@ -1377,21 +1435,16 @@
           displayedSpotCart.clear();
         }
 
-        // 4. Chiusura modali e refresh vista
         closeConfirmHistoryModal();
         closeSummaryModal();
 
-        if (currentTab === 'spot') renderSpotCart();
-        else loadChecklistItems();
-        updateCartTotals();
-
-        const indicator = document.getElementById('spot-draft-indicator');
-        if (indicator) indicator.textContent = '✅ Ordine archiviato! Bozza azzerata.';
-
-        alert(`✓ Ordine per ${curSup?.name || 'Fornitore'} archiviato nello Storico!\nLa bozza spot è stata svuotata per il prossimo ordine.`);
+        alert(editingOrderId ? '✓ Ordine aggiornato con successo nello Storico!' : `✓ Ordine per ${curSup?.name || 'Fornitore'} archiviato nello Storico!`);
+        
+        // Reindirizza allo storico per visualizzare il risultato aggiornato
+        window.location.href = 'history.html';
       } catch (err) {
-        console.error('Errore durante la storicizzazione:', err);
-        alert('Errore durante il salvataggio dello storico: ' + err.message);
+        console.error('Errore salvataggio storico:', err);
+        alert('Errore durante il salvataggio: ' + err.message);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Sì, Procedi ✓';
@@ -1411,6 +1464,7 @@
     window.onDraftOwnerChange = onDraftOwnerChange;
     window.clonePeersDraftToMine = clonePeersDraftToMine;
     window.mergePeersDraftToMine = mergePeersDraftToMine;
+    window.cancelEditingMode = cancelEditingMode;
     window.openSummaryModal = openSummaryModal;
     window.closeSummaryModal = closeSummaryModal;
     window.copyToClipboard = copyToClipboard;
