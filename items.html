@@ -42,26 +42,11 @@
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block text-slate-400 mb-1 font-semibold">Categoria *</label>
-              <select id="category" required class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400">
-                <option value="Alcolici">Alcolici & Liquori</option>
-                <option value="Birre">Birre & Fusti</option>
-                <option value="Bibite">Bibite & Analcolici</option>
-                <option value="Vini">Vini & Bollicine</option>
-                <option value="Caffetteria">Caffetteria</option>
-                <option value="Monouso">Monouso & Consumabili</option>
-                <option value="Altro">Altro</option>
-              </select>
+              <select id="category" required class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400"></select>
             </div>
             <div>
               <label class="block text-slate-400 mb-1 font-semibold">Tipo Unità *</label>
-              <select id="unit-type" required class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400">
-                <option value="Bottiglia Vetro">Bottiglia Vetro</option>
-                <option value="Bottiglia PET">Bottiglia PET</option>
-                <option value="Brick">Brick</option>
-                <option value="Fusto">Fusto</option>
-                <option value="Lattina">Lattina</option>
-                <option value="Sacchetto">Sacchetto</option>
-              </select>
+              <select id="unit-type" required class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400"></select>
             </div>
           </div>
 
@@ -125,13 +110,6 @@
               class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs text-amber-300 focus:outline-none focus:border-amber-400 font-medium"
             >
               <option value="">Tutte le categorie</option>
-              <option value="Alcolici">Alcolici & Liquori</option>
-              <option value="Birre">Birre & Fusti</option>
-              <option value="Bibite">Bibite & Analcolici</option>
-              <option value="Vini">Vini & Bollicine</option>
-              <option value="Caffetteria">Caffetteria</option>
-              <option value="Monouso">Monouso & Consumabili</option>
-              <option value="Altro">Altro</option>
             </select>
           </div>
         </div>
@@ -186,16 +164,30 @@
 
     let itemsData = [];
     let suppliersData = [];
+    let categoriesData = [];
+    let unitTypesData = [];
     let isUserAdmin = false;
     let activeModalItemId = null;
 
+    // Fallback di sicurezza in caso di disconnessione o ritardi tabelle lookup
+    const DEFAULT_CATEGORIES = [
+      { id: 'Alcolici', label: 'Alcolici' },
+      { id: 'Analcolici', label: 'Analcolici' },
+      { id: 'Birre', label: 'Birre' },
+      { id: 'Stuzzichini', label: 'Stuzzichini' },
+      { id: 'Vino', label: 'Vino' },
+      { id: 'Caffetteria', label: 'Caffetteria' },
+      { id: 'Consumabili', label: 'Consumabili' },
+      { id: 'Altro', label: 'Altro' }
+    ];
+
     const DEFAULT_UNIT_TYPES = [
-      'Bottiglia Vetro',
-      'Bottiglia PET',
-      'Brick',
-      'Fusto',
-      'Lattina',
-      'Sacchetto'
+      { id: 'Bottiglia Vetro', label: 'Bottiglia Vetro' },
+      { id: 'Bottiglia PET', label: 'Bottiglia PET' },
+      { id: 'Brick', label: 'Brick' },
+      { id: 'Fusto', label: 'Fusto' },
+      { id: 'Lattina', label: 'Lattina' },
+      { id: 'Sacchetto', label: 'Sacchetto' }
     ];
 
     function calculateUnitRate(priceSingle, formatVal, formatUnit) {
@@ -227,6 +219,7 @@
       return rate !== null ? `${rate.toFixed(2)} ${label}` : null;
     }
 
+    // Caricamento Tipi Unità da DB con fallback
     async function loadUnitTypes() {
       const unitSelect = document.getElementById('unit-type');
       try {
@@ -236,15 +229,47 @@
           .order('sort_order', { ascending: true });
 
         if (!error && units && units.length > 0) {
-          unitSelect.innerHTML = units.map(u => `<option value="${u.id}">${u.label}</option>`).join('');
-          return;
+          unitTypesData = units;
+        } else {
+          unitTypesData = DEFAULT_UNIT_TYPES;
         }
       } catch (e) {
         console.warn('Errore lettura unit_types, uso fallback:', e);
+        unitTypesData = DEFAULT_UNIT_TYPES;
       }
 
-      // Fallback garantito
-      unitSelect.innerHTML = DEFAULT_UNIT_TYPES.map(u => `<option value="${u}">${u}</option>`).join('');
+      unitSelect.innerHTML = unitTypesData.map(u => `<option value="${u.id}">${u.label}</option>`).join('');
+    }
+
+    // Caricamento Categorie da DB con fallback (popola form e filtro)
+    async function loadCategories() {
+      const formCatSelect = document.getElementById('category');
+      const filterCatSelect = document.getElementById('filter-category');
+
+      try {
+        const { data: cats, error } = await supabaseClient
+          .from('item_categories')
+          .select('id, label')
+          .order('sort_order', { ascending: true });
+
+        if (!error && cats && cats.length > 0) {
+          categoriesData = cats;
+        } else {
+          categoriesData = DEFAULT_CATEGORIES;
+        }
+      } catch (e) {
+        console.warn('Errore lettura item_categories, uso fallback:', e);
+        categoriesData = DEFAULT_CATEGORIES;
+      }
+
+      // Popola select del form di inserimento/modifica
+      formCatSelect.innerHTML = categoriesData.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+
+      // Popola select del filtro ricerca
+      const currentFilter = filterCatSelect.value;
+      filterCatSelect.innerHTML = `<option value="">Tutte le categorie</option>` + 
+        categoriesData.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+      filterCatSelect.value = currentFilter;
     }
 
     async function init() {
@@ -270,10 +295,13 @@
           document.getElementById('modal-add-supplier-form').classList.remove('hidden');
         }
 
-        // 1. Popola i tipi unità (DB con fallback)
-        await loadUnitTypes();
+        // 1. Carica domini da DB
+        await Promise.all([
+          loadUnitTypes(),
+          loadCategories()
+        ]);
 
-        // 2. Carica anagrafica fornitori per il modal
+        // 2. Carica fornitori per il modal
         const { data: sups } = await supabaseClient
           .from('suppliers')
           .select('id, name')
@@ -501,7 +529,7 @@
       openSupplierModal(activeModalItemId);
     }
 
-    // Gestione Form Inserimento / Modifica Articolo (Con validazione totale)
+    // Gestione Form Inserimento / Modifica Articolo (Campi tutti obbligatori)
     document.getElementById('item-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = document.getElementById('item-id').value;
@@ -514,12 +542,12 @@
       const minStock = parseInt(document.getElementById('min-stock').value);
       const targetStock = parseInt(document.getElementById('target-stock').value);
 
-      // Validazioni bloccanti
+      // Validazione form
       if (!name) { alert('Inserisci il nome dell\'articolo'); return; }
       if (!category) { alert('Seleziona una categoria'); return; }
       if (!unitType) { alert('Seleziona un tipo unità'); return; }
-      if (isNaN(formatValue) || formatValue <= 0) { alert('Inserisci un valore formato valido (maggiore di 0)'); return; }
-      if (!formatUnit) { alert('Seleziona l\'unità di misura del formato'); return; }
+      if (isNaN(formatValue) || formatValue <= 0) { alert('Inserisci un formato numerico valido (es. 70 o 150)'); return; }
+      if (!formatUnit) { alert('Seleziona l\'unità di misura'); return; }
       if (isNaN(unitsPerPack) || unitsPerPack < 1) { alert('I pezzi per cassa devono essere almeno 1'); return; }
       if (isNaN(minStock) || minStock < 0) { alert('La scorta minima non può essere negativa'); return; }
       if (isNaN(targetStock) || targetStock < minStock) { 
@@ -562,13 +590,25 @@
 
       document.getElementById('item-id').value = item.id;
       document.getElementById('name').value = item.name;
-      document.getElementById('category').value = item.category;
-      
-      // Imposta il valore nel select unit-type (o aggiunge al volo l'opzione se non presente)
+
+      // Imposta Categoria (gestione sicurezza opzione dinamica)
+      const catSel = document.getElementById('category');
+      if (item.category) {
+        let existsCat = Array.from(catSel.options).some(o => o.value === item.category);
+        if (!existsCat) {
+          const opt = document.createElement('option');
+          opt.value = item.category;
+          opt.textContent = item.category;
+          catSel.appendChild(opt);
+        }
+        catSel.value = item.category;
+      }
+
+      // Imposta Tipo Unità (gestione sicurezza opzione dinamica)
       const unitSel = document.getElementById('unit-type');
       if (item.unit_type) {
-        let exists = Array.from(unitSel.options).some(o => o.value === item.unit_type);
-        if (!exists) {
+        let existsUnit = Array.from(unitSel.options).some(o => o.value === item.unit_type);
+        if (!existsUnit) {
           const opt = document.createElement('option');
           opt.value = item.unit_type;
           opt.textContent = item.unit_type;
