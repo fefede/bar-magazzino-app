@@ -119,14 +119,18 @@
           </button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Coca-Cola..." class="sm:col-span-2 w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          <!-- Campo ricerca con pulsante X integrato a destra -->
+          <div class="sm:col-span-2 relative flex items-center">
+            <input type="text" id="spot-search" oninput="onSpotSearchInput()" placeholder="Es. Campari, Coca-Cola..." class="w-full p-2 pr-7 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+            <button onclick="clearSpotSearch()" id="btn-clear-search" class="absolute right-2 text-slate-400 hover:text-white text-xs font-bold hidden px-1" title="Pulisci ricerca">✕</button>
+          </div>
           <select id="spot-category-filter" onchange="filterSpotItems()" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-amber-300 focus:outline-none focus:border-amber-400">
             <option value="">Tutte le cat.</option>
           </select>
         </div>
         <div id="spot-search-results" class="max-h-56 overflow-y-auto space-y-1 pt-1 hidden"></div>
       </div>
-
+      
       <!-- Barra informativa stato bozza -->
       <div id="spot-draft-status" class="text-[11px] text-slate-400 px-1 flex items-center justify-between">
         <span id="spot-draft-indicator">💾 Autosalvataggio attivo</span>
@@ -952,6 +956,28 @@
       updateCartTotals();
     }
 
+function onSpotSearchInput() {
+      const input = document.getElementById('spot-search');
+      const clearBtn = document.getElementById('btn-clear-search');
+      if (input && clearBtn) {
+        if (input.value.length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+      filterSpotItems();
+    }
+
+    function clearSpotSearch() {
+      const input = document.getElementById('spot-search');
+      const clearBtn = document.getElementById('btn-clear-search');
+      if (input) input.value = '';
+      if (clearBtn) clearBtn.classList.add('hidden');
+      filterSpotItems();
+      input?.focus();
+    }
+
     function filterSpotItems() {
       const input = document.getElementById('spot-search');
       const q = (input ? input.value : '').toLowerCase().trim();
@@ -1023,46 +1049,15 @@
 
       mySpotCart.set(itemId, entry);
 
-      const input = document.getElementById('spot-search');
-      if (input) input.value = '';
-      const resContainer = document.getElementById('spot-search-results');
-      if (resContainer) {
-        resContainer.innerHTML = '';
-        resContainer.classList.add('hidden');
-      }
+      // NOTA: Non puliamo più l'input di ricerca (`spot-search`) per consentire aggiunte multiple rapide.
+      // I risultati rimangono visibili e aggiornati.
 
       scheduleDraftSave(itemId);
       renderSpotCart();
       updateCartTotals();
     }
 
-    async function removeSpotItem(itemId) {
-      if (viewingUserId !== 'me') return;
-      const entry = mySpotCart.get(itemId);
-      if (entry) {
-        entry.packs = 0;
-        entry.units = 0;
-        entry.isDismissed = true;
-      }
-      mySpotCart.delete(itemId);
-
-      if (currentUserId) {
-        try {
-          await supabaseClient
-            .from('order_drafts')
-            .delete()
-            .eq('user_id', currentUserId)
-            .eq('order_type', 'spot')
-            .eq('item_id', itemId);
-        } catch (e) {
-          console.warn('Errore cancellazione DB riga:', e);
-        }
-      }
-
-      renderSpotCart();
-      updateCartTotals();
-    }
-
+    
     async function clearSpotDraft() {
       if (viewingUserId !== 'me') return;
       if (!confirm('Vuoi svuotare tutti gli articoli presenti nella tua bozza spot?')) return;
@@ -1471,6 +1466,8 @@ function copyToClipboard() {
     window.changeQty = changeQty;
     window.setQtyDirectly = setQtyDirectly;
     window.filterSpotItems = filterSpotItems;
+    window.onSpotSearchInput = onSpotSearchInput;
+    window.clearSpotSearch = clearSpotSearch;    
     window.addSpotItem = addSpotItem;
     window.removeSpotItem = removeSpotItem;
     window.clearSpotDraft = clearSpotDraft;
