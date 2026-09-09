@@ -1265,7 +1265,7 @@
       m.classList.remove('flex');
     }
 
-    function copyToClipboard() {
+function copyToClipboard() {
       const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
         .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
@@ -1276,32 +1276,45 @@
       let text = `🛒 ORDINE: ${supName.toUpperCase()}\n\n`;
 
       activeEntries.forEach(e => {
-        const packSize = e.item.units_per_pack || 1;
-        const totalUnits = (e.packs * packSize) + e.units;
-        const itemName = e.item.name;
-
-        let breakdown = '';
-        if (e.packs > 0 && e.units > 0) {
-          const packLabel = e.packs === 1 ? '1 cassa' : `${e.packs} casse`;
-          breakdown = `${packLabel} ${itemName} + ${e.units} sfuse`;
-        } else if (e.packs > 0 && e.units === 0) {
-          const packLabel = e.packs === 1 ? '1 cassa' : `${e.packs} casse`;
-          breakdown = `${packLabel} ${itemName}`;
-        } else if (e.packs === 0 && e.units > 0) {
-          breakdown = `${e.units} sfuse ${itemName}`;
+        const item = e.item;
+        const itemName = item.name;
+        
+        // Formato e contenitore es: (33 cl - Lattina)
+        const formatVal = item.format_value ? item.format_value : '';
+        const formatUnit = item.format_unit ? item.format_unit : '';
+        const unitType = item.unit_type ? item.unit_type : '';
+        
+        let details = '';
+        if (formatVal && formatUnit && unitType) {
+          details = `(${formatVal} ${formatUnit} - ${unitType})`;
+        } else if (formatVal && formatUnit) {
+          details = `(${formatVal} ${formatUnit})`;
+        } else if (unitType) {
+          details = `(${unitType})`;
         }
 
-        text += `• ${breakdown} : ${totalUnits} pz totali\n`;
+        let qtyStr = '';
+        if (e.packs > 0 && e.units > 0) {
+          const pLabel = e.packs === 1 ? '1     cassa' : `${String(e.packs).padEnd(5, ' ')} casse`;
+          qtyStr = `${pLabel} di ${itemName} ${details} + ${e.units} sfuse`;
+        } else if (e.packs > 0 && e.units === 0) {
+          const pLabel = e.packs === 1 ? '1     cassa' : `${String(e.packs).padEnd(5, ' ')} casse`;
+          qtyStr = `${pLabel} di ${itemName} ${details}`;
+        } else if (e.packs === 0 && e.units > 0) {
+          const uSuffix = getUnitSuffix(item.unit_type);
+          qtyStr = `${String(e.units).padEnd(5, ' ')} sfuse di ${itemName} ${details}`;
+        }
+
+        text += `• ${qtyStr}\n`;
       });
 
       const total = document.getElementById('summary-total-net').textContent;
       text += `\nTotale stimato: ${total}`;
 
       navigator.clipboard.writeText(text).then(() => {
-        alert(`✓ Elenco per ${supName} copiato negli appunti!\nPuoi incollarlo su WhatsApp o inviarlo via email. Nessun dato è stato modificato o cancellato.`);
+        alert(`✓ Elenco per ${supName} copiato negli appunti!\nPuoi incollarlo su WhatsApp.`);
       });
     }
-
     // ==========================================
     // MODAL DI CONFERMA E STORICIZZAZIONE / AGGIORNAMENTO
     // ==========================================
