@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Storico Ordini - Bar Magazzino</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-3 pb-16">
+
+  <div class="w-full max-w-lg space-y-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+      <div>
+        <h1 class="text-lg font-bold text-amber-400">Storico Ordini</h1>
+        <p class="text-[11px] text-slate-400">Archivio comande e verifiche fornitori</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="orders.html" class="text-xs text-amber-400 hover:text-amber-300 py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-amber-500/30 transition">⚡ Ordini</a>
+        <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Home</a>
+      </div>
+    </div>
+
+    <!-- Filtri rapidi -->
+    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Filtra per Fornitore</label>
+          <select id="filter-supplier" onchange="renderOrders()" class="w-full p-2 bg-slate-900 border border-slate-700 text-xs rounded-lg text-slate-100 focus:outline-none focus:border-amber-400">
+            <option value="">Tutti i fornitori</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Stato Ordine</label>
+          <select id="filter-status" onchange="renderOrders()" class="w-full p-2 bg-slate-900 border border-slate-700 text-xs rounded-lg text-slate-100 focus:outline-none focus:border-amber-400">
+            <option value="">Tutti gli stati</option>
+            <option value="inviato">Inviato (In attesa)</option>
+            <option value="consegnato">Consegnato</option>
+            <option value="annullato">Annullato</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loader -->
+    <div id="status-loading" class="py-12 text-center text-sm text-slate-400">
+      <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
+      <p>Caricamento storico comande...</p>
+    </div>
+
+    <!-- Contenitore Lista Ordini -->
+    <div id="orders-container" class="space-y-3 hidden"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://wwtzkltjhllbclygwfqr.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUserId = null;
+    let currentUserRole = 'user';
+    let ordersList = [];
+    let suppliers = [];
+    let profilesMap = new Map();
+
+    function formatDateTime(isoString) {
+      if (!isoString) return '';
+      const d = new Date(isoString);
+      return d.toLocaleDateString('it-IT', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+      }) + ' ' + d.toLocaleTimeString('it-IT', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+
+    async function init() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { window.location.href = 'index.html'; return; }
+        currentUserId = session.user.id;
+
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('is_approved, role')
+          .eq('id', currentUserId)
+          .single();
+
+        if (!profile || !profile.is_approved) {
+          alert('Accesso non autorizzato');
+          window.location.href = 'index.html';
+          return;
+        }
+
+        currentUserRole = profile.role || 'user';
+
+        // 1. Carica profili utenti (per mostrare nome di chi ha ordinato)
+        try {
+          const { data: profs } = await supabaseClient.from('profiles').select('id, full_name, email');
+          (profs || []).forEach(p => {
+            const label = p.full_name || (p.email ? p.email.split('@')[0] : 'Utente');
+            profilesMap.set(p.id, label);
+          });
+        } catch (e) {
+          console.warn('Lettura profili limitata:', e);
+        }
+
+        // 2. Carica fornitori
+        const { data: supData } = await supabaseClient.from('suppliers').select('id, name').order('name');
+        suppliers = supData || [];
+        populateSupplierFilter();
+
+        // 3. Carica storico ordini con relative righe
+        await fetchOrders();
+
+        document.getElementById('status-loading').classList.add('hidden');
+        document.getElementById('orders-container').classList.remove('hidden');
+      } catch (err) {
+        console.error('Errore inizializzazione:', err);
+        alert('Errore caricamento storico: ' + err.message);
+      }
+    }
+
+    function populateSupplierFilter() {
+      const sel = document.getElementById('filter-supplier');
+      sel.innerHTML = '<option value="">Tutti i fornitori</option>' +
+        suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
+
+    async function fetchOrders() {
+      const { data, error } = await supabaseClient
+        .from('orders')
+        .select(`
+          id,
+          created_at,
+          supplier_id,
+          user_id,
+          status,
+          total_net,
+          notes,
+          suppliers ( id, name ),
+          order_items (
+            id,
+            item_id,
+            item_name,
+            supplier_sku,
+            boxes,
+            singles,
+            total_pieces,
+            price_single,
+            subtotal
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Errore fetch orders:', error);
+        return;
+      }
+
+      ordersList = data || [];
+      renderOrders();
+    }
+
+    function renderOrders() {
+      const container = document.getElementById('orders-container');
+      const fSup = document.getElementById('filter-supplier').value;
+      const fStatus = document.getElementById('filter-status').value;
+
+      const filtered = ordersList.filter(o => {
+        const matchSup = !fSup || o.supplier_id === fSup;
+        const matchStatus = !fStatus || o.status === fStatus;
+        return matchSup && matchStatus;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="p-8 text-center bg-slate-800 rounded-xl border border-slate-700 text-slate-400 text-xs">Nessun ordine archiviato trovato con i filtri correnti.</div>';
+        return;
+      }
+
+      const isAdmin = currentUserRole === 'admin';
+
+      container.innerHTML = filtered.map(order => {
+        const supName = order.suppliers ? order.suppliers.name : 'Fornitore n.d.';
+        const userName = profilesMap.get(order.user_id) || 'Utente';
+        const dateFormatted = formatDateTime(order.created_at);
+        const items = order.order_items || [];
+        const totalItemsCount = items.length;
+
+        let statusBadge = '';
+        if (order.status === 'consegnato') {
+          statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Consegnato</span>';
+        } else if (order.status === 'annullato') {
+          statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">Annullato</span>';
+        } else {
+          statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Inviato</span>';
+        }
+
+        return `
+          <div class="bg-slate-800 rounded-xl border border-slate-700 p-3.5 space-y-3 shadow-sm">
+            <!-- Testata Card -->
+            <div class="flex items-start justify-between gap-2 border-b border-slate-700/70 pb-2.5">
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-bold text-amber-400 text-sm">${supName}</span>
+                  ${statusBadge}
+                </div>
+                <div class="text-[11px] text-slate-400 mt-1">
+                  📅 ${dateFormatted} • 👤 <span class="text-slate-300 font-medium">${userName}</span>
+                </div>
+                ${order.notes ? `<div class="text-[11px] text-sky-300 mt-0.5 bg-sky-950/40 px-2 py-0.5 rounded border border-sky-800/40">💬 Note: ${order.notes}</div>` : ''}
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-xs text-slate-400">Totale Netto</div>
+                <div class="text-base font-bold font-mono text-amber-400">${Number(order.total_net || 0).toFixed(2)} €</div>
+              </div>
+            </div>
+
+            <!-- Dettaglio rapido righe -->
+            <div class="space-y-1.5 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 text-xs">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Articoli inclusi (${totalItemsCount} referenze):
+              </div>
+              ${items.map(it => `
+                <div class="flex items-center justify-between text-slate-300 py-0.5 border-b border-slate-800/50 last:border-0">
+                  <div>
+                    <span class="font-medium text-slate-200">${it.item_name}</span>
+                    <span class="text-[10px] text-slate-400 ml-1">
+                      (${it.boxes > 0 ? `${it.boxes} casse` : ''}${it.boxes > 0 && it.singles > 0 ? ' + ' : ''}${it.singles > 0 ? `${it.singles} sfuse` : ''})
+                    </span>
+                  </div>
+                  <div class="font-mono text-slate-300 text-[11px]">
+                    <span class="text-emerald-400 font-bold">${it.total_pieces} pz</span>
+                    • ${Number(it.subtotal || 0).toFixed(2)} €
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Barra Azioni -->
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <button onclick="copyHistoricOrderToSpotDraft('${order.id}')" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-amber-300 rounded-lg text-xs font-semibold border border-amber-500/30 transition active:scale-95 flex items-center gap-1.5">
+                <span>📥</span> Copia in bozza spot
+              </button>
+
+              ${isAdmin ? `
+                <div class="flex items-center gap-1.5">
+                  <button onclick="toggleOrderStatus('${order.id}', '${order.status}')" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition active:scale-95" title="Cambia stato">
+                    ${order.status === 'inviato' ? '✓ Segna Consegnato' : '↺ Riapri'}
+                  </button>
+                  <button onclick="deleteHistoricOrder('${order.id}')" class="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 text-rose-300 rounded-lg text-xs font-semibold border border-rose-800/50 transition active:scale-95" title="Elimina ordine">
+                    🗑
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==========================================
+    // AZIONI: COPIA IN BOZZA SPOT
+    // ==========================================
+    async function copyHistoricOrderToSpotDraft(orderId) {
+      const order = ordersList.find(o => o.id === orderId);
+      if (!order) return;
+
+      const items = order.order_items || [];
+      if (items.length === 0) {
+        alert('Questo ordine non contiene articoli da ripristinare.');
+        return;
+      }
+
+      if (!confirm('ATTENZIONE: Copiando questo ordine nella tua bozza spot, la tua bozza spot attuale verrà SOVRASCRITTA per intero.\n\nVuoi procedere?')) {
+        return;
+      }
+
+      try {
+        // 1. Svuota la bozza spot personale corrente
+        await supabaseClient
+          .from('order_drafts')
+          .delete()
+          .eq('user_id', currentUserId)
+          .eq('order_type', 'spot');
+
+        // 2. Prepara le nuove righe
+        let sortOrder = 0;
+        const draftRows = [];
+
+        items.forEach(it => {
+          if (it.item_id) {
+            sortOrder++;
+            draftRows.push({
+              user_id: currentUserId,
+              order_type: 'spot',
+              item_id: it.item_id,
+              boxes: it.boxes || 0,
+              singles: it.singles || 0,
+              sort_order: sortOrder,
+              updated_at: new Date().toISOString()
+            });
+          }
+        });
+
+        if (draftRows.length > 0) {
+          const { error } = await supabaseClient.from('order_drafts').insert(draftRows);
+          if (error) throw error;
+        }
+
+        alert('✓ Ordine copiato nella tua bozza spot!\nVerrai reindirizzato alla pagina ordini.');
+        window.location.href = 'orders.html';
+      } catch (err) {
+        console.error('Errore copia in bozza:', err);
+        alert('Errore durante la copia nella bozza: ' + err.message);
+      }
+    }
+
+    // ==========================================
+    // AZIONI ADMIN: CAMBIO STATO ED ELIMINAZIONE
+    // ==========================================
+    async function toggleOrderStatus(orderId, currentStatus) {
+      const nextStatus = currentStatus === 'inviato' ? 'consegnato' : 'inviato';
+      const label = nextStatus === 'consegnato' ? 'CONSEGNATO' : 'INVIATO';
+
+      if (!confirm(`Vuoi impostare lo stato dell'ordine come ${label}?`)) return;
+
+      const { error } = await supabaseClient
+        .from('orders')
+        .update({ status: nextStatus })
+        .eq('id', orderId);
+
+      if (error) {
+        alert('Errore aggiornamento stato: ' + error.message);
+      } else {
+        await fetchOrders();
+      }
+    }
+
+    async function deleteHistoricOrder(orderId) {
+      if (!confirm('Sei sicuro di voler ELIMINARE definitivamente questo ordine storicizzato?\nL\'operazione non è reversibile.')) {
+        return;
+      }
+
+      const { error } = await supabaseClient
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (error) {
+        alert('Errore eliminazione ordine: ' + error.message);
+      } else {
+        alert('Ordine eliminato con successo dallo storico.');
+        await fetchOrders();
+      }
+    }
+
+    window.renderOrders = renderOrders;
+    window.copyHistoricOrderToSpotDraft = copyHistoricOrderToSpotDraft;
+    window.toggleOrderStatus = toggleOrderStatus;
+    window.deleteHistoricOrder = deleteHistoricOrder;
+
+    init();
+  </script>
+</body>
+</html>
