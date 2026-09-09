@@ -27,7 +27,9 @@
         <h1 class="text-lg font-bold text-amber-400">Ordini & Verifiche</h1>
         <p class="text-[11px] text-slate-400">Gestione ordini per singolo fornitore</p>
       </div>
-      <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Dashboard</a>
+      <div class="flex items-center gap-2">
+        <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Dashboard</a>
+      </div>
     </div>
 
     <!-- SELETTORE FORNITORE -->
@@ -67,7 +69,7 @@
     <!-- SEZIONE SPOT -->
     <div id="section-spot" class="hidden space-y-3">
       
-      <!-- Selettore Bozza Personale / Altri Utenti -->
+      <!-- Selettore Bozza Personale / Altri Utenti con Nomi / Email leggibili -->
       <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-xs text-slate-300">
           <span>👤</span>
@@ -80,12 +82,12 @@
         </div>
       </div>
 
-      <!-- Banner Avviso Sola Lettura quando si visualizza la bozza di un collega con tasti Copia e Unisci -->
+      <!-- Banner Avviso Sola Lettura quando si visualizza la bozza di un collega -->
       <div id="peer-draft-banner" class="hidden bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl flex flex-col gap-2.5 text-xs">
         <div class="flex items-start justify-between">
           <div>
             <span class="font-bold text-amber-300">👁 Modalità Consultazione Bozza</span>
-            <p class="text-[11px] text-slate-400">Stai leggendo la bozza di un collega senza modificare la tua.</p>
+            <p class="text-[11px] text-slate-400">Stai leggendo la bozza di un collega senza toccare la tua.</p>
           </div>
           <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono border border-amber-500/30">Solo Lettura</span>
         </div>
@@ -158,13 +160,61 @@
           <span id="summary-total-net" class="font-mono text-amber-400">0.00 €</span>
         </div>
         <div class="grid grid-cols-2 gap-2 pt-1">
-          <button onclick="copyToClipboard()" class="py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition">
+          <button onclick="copyToClipboard()" class="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5">
             📋 Copia Elenco
           </button>
-          <button onclick="confirmOrder()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition">
-            ✓ Conferma Ordine
+          <button onclick="openConfirmHistoryModal()" class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow">
+            📦 Storicizza Ordine
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DI CONFERMA STORICIZZAZIONE (SÌ / NO) -->
+  <div id="confirm-history-modal" class="fixed inset-0 bg-black/85 hidden items-center justify-center z-50 p-4">
+    <div class="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl p-5 border border-amber-500/40 space-y-4">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg shrink-0">
+          📦
+        </div>
+        <div>
+          <h3 class="font-bold text-white text-sm">Storicizzare questo ordine?</h3>
+          <p class="text-[11px] text-slate-400 mt-0.5">Archiviazione permanente per verifica alla consegna merci.</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-700 text-xs space-y-1.5 text-slate-300">
+        <div class="flex justify-between">
+          <span class="text-slate-400">Fornitore:</span>
+          <span class="font-bold text-amber-400" id="hist-sup-name"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Totale stimato:</span>
+          <span class="font-bold font-mono text-emerald-400" id="hist-total-net"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Articoli:</span>
+          <span class="font-semibold text-slate-200" id="hist-items-count"></span>
+        </div>
+        <div class="pt-2 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+          • Verrà creata una voce nello Storico con prezzi congelati.<br>
+          • <strong class="text-amber-300">La bozza attuale NON verrà cancellata</strong> e rimarrà intatta a schermo.
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Note aggiuntive (opzionali):</label>
+        <input type="text" id="hist-order-notes" placeholder="Es. Urgente, consegna venerdì mattina..." class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeConfirmHistoryModal()" class="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold rounded-lg transition active:scale-95">
+          Annulla (No)
+        </button>
+        <button onclick="executeSaveHistoryOrder()" id="btn-do-save-history" class="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition active:scale-95 shadow">
+          Sì, Procedi ✓
+        </button>
       </div>
     </div>
   </div>
@@ -175,6 +225,7 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentUserId = null;
+    let currentUserRole = 'user';
     let allItems = [];
     let suppliers = [];
     let checklists = [];
@@ -187,8 +238,8 @@
     let mySpotCart = new Map();
     let myMaxSortOrder = 0;
 
-    // Bozza attualmente visualizzata
-    let viewingUserId = 'me'; // 'me' oppure UUID collega
+    // Bozza visualizzata a schermo
+    let viewingUserId = 'me';
     let displayedSpotCart = new Map();
 
     let saveTimeoutMap = new Map();
@@ -254,7 +305,7 @@
 
         const { data: profile } = await supabaseClient
           .from('profiles')
-          .select('is_approved')
+          .select('is_approved, role')
           .eq('id', currentUserId)
           .single();
 
@@ -263,6 +314,8 @@
           window.location.href = 'index.html';
           return;
         }
+
+        currentUserRole = profile.role || 'user';
 
         // 1. Categorie
         try {
@@ -326,18 +379,21 @@
 
         checklists = chkData || [];
 
-        // 5. Profili Utenti
+        // 5. Profili Utenti (recupero full_name ed email per leggibilità)
         try {
           const { data: profs } = await supabaseClient.from('profiles').select('id, email, full_name');
-          (profs || []).forEach(p => profilesMap.set(p.id, p.full_name || p.email || 'Utente'));
+          (profs || []).forEach(p => {
+            const label = p.full_name || (p.email ? p.email.split('@')[0] : `Utente`);
+            profilesMap.set(p.id, label);
+          });
         } catch (e) {
-          console.warn('Lettura profiles limitata:', e);
+          console.warn('Lettura profiles:', e);
         }
 
         populateSupplierSelector();
         populateChecklistSelector();
 
-        // 6. Carica la propria bozza dal DB
+        // 6. Carica bozza personale e colleghi
         await loadMySpotDraftFromDB();
         await populatePeerDraftsSelector();
 
@@ -624,7 +680,6 @@
         renderSpotCart();
         updateCartTotals();
       } else {
-        // Carica in sola lettura la bozza del collega selezionato
         banner.classList.remove('hidden');
         searchBox.classList.add('hidden');
         indicator.textContent = '👁 Sola visualizzazione bozza collega';
@@ -656,14 +711,12 @@
       }
     }
 
-    // 1. CLONA / SOSTITUISCE LA BOZZA DEL COLLEGA NELLA PROPRIA
     async function clonePeersDraftToMine() {
       if (displayedSpotCart.size === 0) return;
       if (!confirm('Vuoi SOSTITUIRE la tua bozza con quella del collega? I tuoi articoli attuali verranno sovrascritti.')) {
         return;
       }
 
-      // Svuota prima la propria bozza attuale su DB
       await supabaseClient
         .from('order_drafts')
         .delete()
@@ -702,10 +755,9 @@
       switchToMyDraft('Bozza sostituita con successo!');
     }
 
-    // 2. UNISCE LA BOZZA DEL COLLEGA ALLA PROPRIA (SOMMA QUANTITÀ ESISTENTI + INSERISCE NUOVI ARTICOLI)
     async function mergePeersDraftToMine() {
       if (displayedSpotCart.size === 0) return;
-      if (!confirm('Vuoi UNIRE la bozza del collega alla tua? Gli articoli già presenti sommeranno le loro quantità (casse e sfuse), mentre i nuovi articoli verranno aggiunti.')) {
+      if (!confirm('Vuoi UNIRE la bozza del collega alla tua? Gli articoli già presenti sommeranno le loro quantità, mentre i nuovi articoli verranno aggiunti.')) {
         return;
       }
 
@@ -715,11 +767,9 @@
         let myEntry = mySpotCart.get(itemId);
 
         if (myEntry) {
-          // Somma le quantità all'articolo già presente
           myEntry.packs = (myEntry.packs || 0) + (peerEntry.packs || 0);
           myEntry.units = (myEntry.units || 0) + (peerEntry.units || 0);
           myEntry.isDismissed = false;
-          // Porta l'articolo unito in testa
           myMaxSortOrder++;
           myEntry.sortOrder = myMaxSortOrder;
 
@@ -735,7 +785,6 @@
             updated_at: new Date().toISOString()
           });
         } else {
-          // Aggiunge il nuovo articolo alla mia bozza
           myMaxSortOrder++;
           const newEntry = {
             item: peerEntry.item,
@@ -833,7 +882,6 @@
       }
     }
 
-    // Modifica quantità con click +/-
     function changeQty(itemId, type, delta) {
       if (viewingUserId !== 'me') return;
       const item = allItems.find(i => i.id === itemId);
@@ -854,7 +902,6 @@
       updateCartTotals();
     }
 
-    // Modifica quantità diretta da tastiera numerica
     function setQtyDirectly(itemId, type, rawValue) {
       if (viewingUserId !== 'me') return;
       const val = parseInt(rawValue, 10);
@@ -1017,7 +1064,6 @@
       const clearBtn = document.getElementById('btn-clear-draft');
       const countEl = document.getElementById('spot-items-count');
 
-      // ORDINAMENTO INVERSO: l'ultimo aggiunto (sortOrder più alto) sta in cima (B - A)
       const activeEntries = Array.from(displayedSpotCart.values())
         .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
         .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
@@ -1068,10 +1114,10 @@
               ` : ''}
             </div>
 
-            <!-- CONTROLLI QUANTITÀ CON INPUT DIRETTO E AUTO-SELEZIONE -->
+            <!-- CONTROLLI QUANTITÀ CON INPUT DIRETTO -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
-                <!-- Box Cartoni -->
+                <!-- Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
@@ -1089,7 +1135,7 @@
                   </div>
                 </div>
 
-                <!-- Box Pezzi Sfusi -->
+                <!-- Pezzi Sfusi -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
@@ -1228,35 +1274,111 @@
       text += `\nTotale stimato: ${total}`;
 
       navigator.clipboard.writeText(text).then(() => {
-        alert(`Elenco per ${supName} copiato negli appunti!`);
+        alert(`✓ Elenco per ${supName} copiato negli appunti!\nPuoi incollarlo su WhatsApp o inviarlo via email. Nessun dato è stato modificato o cancellato.`);
       });
     }
 
-    async function confirmOrder() {
-      const curSup = suppliers.find(s => s.id === selectedSupplierId);
-      
-      if (currentUserId && viewingUserId === 'me') {
-        try {
-          await supabaseClient
-            .from('order_drafts')
-            .delete()
-            .eq('user_id', currentUserId)
-            .eq('order_type', 'spot');
-        } catch (e) {
-          console.warn('Errore cancellazione bozza post-conferma:', e);
-        }
+    // ==========================================
+    // POPUP DI CONFERMA E STORICIZZAZIONE
+    // ==========================================
+
+    function openConfirmHistoryModal() {
+      const activeEntries = Array.from(displayedSpotCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
+      if (activeEntries.length === 0) {
+        alert('Nessun articolo con quantità positiva.');
+        return;
       }
 
-      alert(`Ordine per ${curSup?.name || 'Fornitore'} verificato con successo!`);
-      closeSummaryModal();
-      
-      mySpotCart.clear();
-      myMaxSortOrder = 0;
-      displayedSpotCart.clear();
+      const curSup = suppliers.find(s => s.id === selectedSupplierId);
+      document.getElementById('hist-sup-name').textContent = curSup ? curSup.name : 'Fornitore';
+      document.getElementById('hist-total-net').textContent = document.getElementById('summary-total-net').textContent;
+      document.getElementById('hist-items-count').textContent = `${activeEntries.length} referenze`;
+      document.getElementById('hist-order-notes').value = '';
 
-      if (currentTab === 'spot') renderSpotCart();
-      else loadChecklistItems();
-      updateCartTotals();
+      document.getElementById('confirm-history-modal').classList.remove('hidden');
+      document.getElementById('confirm-history-modal').classList.add('flex');
+    }
+
+    function closeConfirmHistoryModal() {
+      const m = document.getElementById('confirm-history-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    async function executeSaveHistoryOrder() {
+      const btn = document.getElementById('btn-do-save-history');
+      btn.disabled = true;
+      btn.textContent = 'Archiviazione in corso...';
+
+      const activeEntries = Array.from(displayedSpotCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
+      const curSup = suppliers.find(s => s.id === selectedSupplierId);
+      const notes = document.getElementById('hist-order-notes').value.trim() || null;
+
+      let grandTotal = 0;
+      activeEntries.forEach(e => {
+        const packSize = e.item.units_per_pack || 1;
+        const totalUnits = (e.packs * packSize) + e.units;
+        const supInfo = getSupplierInfo(e.item);
+        grandTotal += totalUnits * supInfo.priceSingle;
+      });
+
+      try {
+        // 1. Inserimento Testata Ordine
+        const { data: orderData, error: orderErr } = await supabaseClient
+          .from('orders')
+          .insert({
+            user_id: currentUserId,
+            supplier_id: selectedSupplierId,
+            status: 'inviato',
+            total_net: grandTotal,
+            notes: notes
+          })
+          .select()
+          .single();
+
+        if (orderErr) throw orderErr;
+
+        // 2. Inserimento Righe con dati congelati
+        const orderItemsToInsert = activeEntries.map(e => {
+          const packSize = e.item.units_per_pack || 1;
+          const totalUnits = (e.packs * packSize) + e.units;
+          const supInfo = getSupplierInfo(e.item);
+          const subtotal = totalUnits * supInfo.priceSingle;
+
+          return {
+            order_id: orderData.id,
+            item_id: e.item.id,
+            item_name: e.item.name,
+            supplier_sku: supInfo.sku || null,
+            boxes: e.packs,
+            singles: e.units,
+            total_pieces: totalUnits,
+            price_single: supInfo.priceSingle,
+            subtotal: subtotal
+          };
+        });
+
+        const { error: itemsErr } = await supabaseClient
+          .from('order_items')
+          .insert(orderItemsToInsert);
+
+        if (itemsErr) throw itemsErr;
+
+        // 3. Chiusura modali (NESSUNA cancellazione della bozza, rimane intatta)
+        closeConfirmHistoryModal();
+        closeSummaryModal();
+
+        const indicator = document.getElementById('spot-draft-indicator');
+        if (indicator) indicator.textContent = '✅ Ordine archiviato nello Storico!';
+
+        alert(`✓ Ordine per ${curSup?.name || 'Fornitore'} storicizzato con successo!\n\nI dati sono stati archiviati permanentemente nello storico. La tua bozza rimane aperta a schermo per qualsiasi altra consultazione o modifica.`);
+      } catch (err) {
+        console.error('Errore durante la storicizzazione:', err);
+        alert('Errore durante il salvataggio dello storico: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sì, Procedi ✓';
+      }
     }
 
     window.switchTab = switchTab;
@@ -1275,7 +1397,9 @@
     window.openSummaryModal = openSummaryModal;
     window.closeSummaryModal = closeSummaryModal;
     window.copyToClipboard = copyToClipboard;
-    window.confirmOrder = confirmOrder;
+    window.openConfirmHistoryModal = openConfirmHistoryModal;
+    window.closeConfirmHistoryModal = closeConfirmHistoryModal;
+    window.executeSaveHistoryOrder = executeSaveHistoryOrder;
 
     init();
   </script>
