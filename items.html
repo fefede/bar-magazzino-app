@@ -7,42 +7,124 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-3 pb-16">
 
-  <div class="w-full max-w-lg bg-slate-800 rounded-2xl shadow-xl p-5 border border-slate-700 my-auto">
-    <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+  <div class="w-full max-w-lg space-y-4">
+    <!-- Header con navigazione -->
+    <div class="flex items-center justify-between border-b border-slate-700 pb-3">
       <div>
         <h1 class="text-lg font-bold text-amber-400">Catalogo Articoli</h1>
-        <p id="role-subtitle" class="text-[11px] text-slate-400">Consultazione scorte minime</p>
+        <p class="text-[11px] text-slate-400">Anagrafica scorte e listini fornitori</p>
       </div>
-      <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg border border-slate-600 transition">← Torna all'App</a>
+      <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Dashboard</a>
     </div>
 
-    <!-- Caricamento -->
-    <div id="status-loading" class="py-8 text-center text-sm text-slate-400">
+    <!-- Schermata Caricamento -->
+    <div id="status-loading" class="py-12 text-center text-sm text-slate-400">
       <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
       <p>Caricamento catalogo...</p>
     </div>
 
-    <div id="main-content" class="hidden space-y-5">
-      <!-- Form Inserimento / Modifica (Solo Admin) -->
-      <form id="form-item" class="hidden bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-3 text-xs">
-        <div class="flex items-center justify-between">
-          <h2 id="form-title" class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">+ Nuovo Articolo</h2>
-          <button type="button" id="btn-cancel-edit" class="hidden text-slate-400 hover:text-rose-400">Annulla modifica</button>
-        </div>
+    <!-- Contenitore Principale -->
+    <div id="main-content" class="hidden space-y-4">
 
-        <input type="hidden" id="item-id" value="" />
+      <!-- Form Nuovo / Modifica Articolo (Visibile solo agli Admin) -->
+      <div id="form-container" class="hidden bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
+        <h2 id="form-title" class="text-sm font-bold text-amber-400">Aggiungi Nuovo Articolo</h2>
+        <form id="item-form" class="space-y-3 text-xs">
+          <input type="hidden" id="item-id" />
 
-        <div>
-          <label class="block text-slate-400 mb-1">Nome Articolo *</label>
-          <input type="text" id="input-name" required placeholder="Es. Gin Tanqueray, Coca Cola, Heineken" class="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-slate-400 mb-1">Categoria</label>
-            <select id="input-category" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
+            <label class="block text-slate-400 mb-1">Nome Articolo *</label>
+            <input type="text" id="name" required placeholder="Es. Campari 25.0°, Gin Bickens..." class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-slate-400 mb-1">Categoria *</label>
+              <select id="category" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400">
+                <option value="Alcolici">Alcolici & Liquori</option>
+                <option value="Birre">Birre & Fusti</option>
+                <option value="Bibite">Bibite & Analcolici</option>
+                <option value="Vini">Vini & Bollicine</option>
+                <option value="Caffetteria">Caffetteria</option>
+                <option value="Monouso">Monouso & Consumabili</option>
+                <option value="Altro">Altro</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Tipo Unità *</label>
+              <select id="unit-type" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400">
+                <option value="Bottiglia Vetro">Bottiglia Vetro</option>
+                <option value="Lattina">Lattina</option>
+                <option value="Fusto">Fusto</option>
+                <option value="Brick / Cartone">Brick / Cartone</option>
+                <option value="Confezione">Confezione</option>
+                <option value="Pezzo">Pezzo singolo</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block text-slate-400 mb-1">Formato</label>
+              <input type="number" step="any" id="format-value" placeholder="Es. 70, 1, 33" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono" />
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Unità</label>
+              <select id="format-unit" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-400">
+                <option value="cl">cl</option>
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="pz">pz</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Pz / Cassa</label>
+              <input type="number" id="units-per-pack" min="1" value="1" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-amber-400 font-mono" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-slate-400 mb-1">Scorta Minima (Avviso)</label>
+              <input type="number" id="min-stock" min="0" value="2" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-amber-400 font-mono" />
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Scorta Obiettivo (Pieno)</label>
+              <input type="number" id="target-stock" min="0" value="6" class="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-amber-400 font-mono" />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button type="button" id="btn-cancel" onclick="resetForm()" class="hidden py-2 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold transition">Annulla</button>
+            <button type="submit" id="btn-save" class="py-2 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition active:scale-95">Salva Articolo</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Elenco Articoli con Barra Filtri -->
+      <div class="space-y-3">
+        <!-- BARRA FILTRI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80">
+          <div>
+            <input 
+              type="text" 
+              id="filter-search" 
+              oninput="applyFilters()" 
+              placeholder="🔍 Cerca nome o codice..." 
+              class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            />
+          </div>
+          <div>
+            <select 
+              id="filter-category" 
+              onchange="applyFilters()" 
+              class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs text-amber-300 focus:outline-none focus:border-amber-400 font-medium"
+            >
+              <option value="">Tutte le categorie</option>
               <option value="Alcolici">Alcolici & Liquori</option>
               <option value="Birre">Birre & Fusti</option>
               <option value="Bibite">Bibite & Analcolici</option>
@@ -52,83 +134,47 @@
               <option value="Altro">Altro</option>
             </select>
           </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Tipo Contenitore</label>
-            <select id="input-unit" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
-              <option value="Bottiglia Vetro">Bottiglia Vetro</option>
-              <option value="Bottiglia PET">Bottiglia PET</option>
-              <option value="Lattina">Lattina</option>
-              <option value="Fusto">Fusto</option>
-              <option value="Cartone / Bag-in-Box">Cartone / Bag-in-Box</option>
-              <option value="Busta / Sacchetto">Busta / Sacchetto</option>
-              <option value="Pezzi / Confezione">Pezzi / Confezione</option>
-            </select>          
-          </div>
         </div>
 
-        <!-- Formato Contenuto: Valore + Unità -->
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-slate-400 mb-1">Contenuto / Formato</label>
-            <input type="number" step="any" id="input-format-val" placeholder="Es. 33, 70, 1, 30" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Unità di Misura</label>
-            <select id="input-format-unit" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400">
-              <option value="cl">cl (Centilitri)</option>
-              <option value="L">L (Litri)</option>
-              <option value="ml">ml (Millilitri)</option>
-              <option value="kg">kg (Chilogrammi)</option>
-              <option value="g">g (Grammi)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Parametri Scorta & Confezionamento -->
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="block text-slate-400 mb-1">Pz./Cassa</label>
-            <input type="number" id="input-pack" min="1" value="1" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Scorta Min.</label>
-            <input type="number" id="input-min" min="0" value="2" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
-          </div>
-          <div>
-            <label class="block text-slate-400 mb-1">Scorta Obiet.</label>
-            <input type="number" id="input-target" min="0" value="6" class="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-400" />
-          </div>
-        </div>
-
-        <button type="submit" id="btn-submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition active:scale-95">Salva Articolo</button>
-      </form>
-
-      <!-- Elenco Articoli -->
-      <div class="space-y-2">
         <div class="flex items-center justify-between text-xs text-slate-400 px-1">
           <span id="items-count">Articoli registrati: 0</span>
-          <button id="btn-refresh" class="text-amber-400 hover:text-amber-300 font-medium">Aggiorna ↻</button>
+          <button onclick="loadItems()" class="text-amber-400 hover:text-amber-300 font-medium">Aggiorna ↻</button>
         </div>
-        <div id="items-list" class="space-y-2 text-xs"></div>
+        
+        <div id="items-list" class="space-y-2.5 text-xs"></div>
       </div>
+
     </div>
   </div>
 
-  <!-- POPUP DETTAGLIO LISTINI (Stesso tema dark) -->
-  <div id="supplier-modal" class="fixed inset-0 bg-black/75 hidden items-center justify-center z-50 p-4">
-    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-5 border border-slate-700 relative">
-      <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-3">
+  <!-- MODAL LISTINI & FORNITORI -->
+  <div id="supplier-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4">
+    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-5 border border-slate-700 space-y-4 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-700 pb-2">
         <div>
-          <h3 id="modal-item-name" class="font-bold text-amber-400 text-sm">Prezzi Fornitori</h3>
-          <p id="modal-item-desc" class="text-[11px] text-slate-400"></p>
+          <h3 id="modal-item-name" class="font-bold text-amber-400 text-sm">Listini Fornitori</h3>
+          <p id="modal-item-format" class="text-[11px] text-slate-400"></p>
         </div>
-        <button onclick="closeSupplierModal()" class="text-slate-400 hover:text-white p-1 text-base leading-none">✕</button>
+        <button onclick="closeSupplierModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
       </div>
 
-      <div id="modal-supplier-list" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1"></div>
+      <!-- Elenco fornitori associati -->
+      <div id="modal-suppliers-list" class="overflow-y-auto space-y-2 text-xs flex-1 pr-1"></div>
 
-      <div class="mt-4 pt-3 border-t border-slate-700/80 flex justify-end">
-        <button onclick="closeSupplierModal()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition">Chiudi</button>
+      <!-- Form rapido aggiunta fornitore/prezzo (solo admin) -->
+      <div id="modal-add-supplier-form" class="border-t border-slate-700 pt-3 space-y-2 hidden">
+        <span class="text-[11px] font-bold text-slate-300 block">Associa / Aggiorna Listino</span>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="modal-supplier-select" class="p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100"></select>
+          <input type="text" id="modal-sku" placeholder="Codice Fornitore (SKU)" class="p-2 rounded bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <input type="number" step="0.01" id="modal-price-single" placeholder="Prezzo Btg Netto €" class="p-2 rounded bg-slate-900 border border-slate-700 text-xs text-white font-mono placeholder-slate-500" />
+          <input type="number" step="0.01" id="modal-price-box" placeholder="Prezzo Cassa Netto €" class="p-2 rounded bg-slate-900 border border-slate-700 text-xs text-white font-mono placeholder-slate-500" />
+        </div>
+        <button onclick="saveSupplierPrice()" class="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95">
+          Salva Listino Fornitore
+        </button>
       </div>
     </div>
   </div>
@@ -138,80 +184,92 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const statusLoading = document.getElementById('status-loading');
-    const mainContent = document.getElementById('main-content');
-    const roleSubtitle = document.getElementById('role-subtitle');
-    const itemsList = document.getElementById('items-list');
-    const itemsCount = document.getElementById('items-count');
-    const formItem = document.getElementById('form-item');
-    const formTitle = document.getElementById('form-title');
-    const btnCancelEdit = document.getElementById('btn-cancel-edit');
-    const btnSubmit = document.getElementById('btn-submit');
-
-    const itemId = document.getElementById('item-id');
-    const inputName = document.getElementById('input-name');
-    const inputCategory = document.getElementById('input-category');
-    const inputUnit = document.getElementById('input-unit');
-    const inputFormatVal = document.getElementById('input-format-val');
-    const inputFormatUnit = document.getElementById('input-format-unit');
-    const inputPack = document.getElementById('input-pack');
-    const inputMin = document.getElementById('input-min');
-    const inputTarget = document.getElementById('input-target');
-
-    const supplierModal = document.getElementById('supplier-modal');
-    const modalItemName = document.getElementById('modal-item-name');
-    const modalItemDesc = document.getElementById('modal-item-desc');
-    const modalSupplierList = document.getElementById('modal-supplier-list');
-
     let itemsData = [];
+    let suppliersData = [];
     let isUserAdmin = false;
+    let activeModalItemId = null;
+
+    // Normalizzazione prezzo al litro o al chilogrammo
+    function calculateUnitRate(priceSingle, formatVal, formatUnit) {
+      if (!priceSingle || !formatVal || Number(formatVal) <= 0) return null;
+      const p = Number(priceSingle);
+      const val = Number(formatVal);
+      const unit = (formatUnit || '').trim().toLowerCase();
+
+      let rate = null;
+      let label = '';
+
+      if (unit === 'cl') {
+        rate = (p * 100) / val;
+        label = '€/L';
+      } else if (unit === 'l' || unit === 'lt' || unit === 'litri') {
+        rate = p / val;
+        label = '€/L';
+      } else if (unit === 'ml') {
+        rate = (p * 1000) / val;
+        label = '€/L';
+      } else if (unit === 'kg') {
+        rate = p / val;
+        label = '€/kg';
+      } else if (unit === 'g' || unit === 'gr') {
+        rate = (p * 1000) / val;
+        label = '€/kg';
+      }
+
+      return rate !== null ? `${rate.toFixed(2)} ${label}` : null;
+    }
 
     async function init() {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) { 
-          window.location.href = 'index.html'; 
-          return; 
-        }
+        if (!session) { window.location.href = 'index.html'; return; }
 
-        const { data: profile, error } = await supabaseClient
+        const { data: profile } = await supabaseClient
           .from('profiles')
-          .select('is_admin, is_approved')
+          .select('is_approved, is_admin')
           .eq('id', session.user.id)
           .single();
 
-        if (error || !profile || !profile.is_approved) {
-          alert('Accesso negato.');
+        if (!profile || !profile.is_approved) {
+          alert('Accesso non autorizzato');
           window.location.href = 'index.html';
           return;
         }
 
-        isUserAdmin = !!profile.is_admin;
+        isUserAdmin = profile.is_admin;
         if (isUserAdmin) {
-          roleSubtitle.textContent = 'Gestione anagrafica (Privilegi Admin)';
-          formItem.classList.remove('hidden');
-        } else {
-          roleSubtitle.textContent = 'Consultazione catalogo scorte';
+          document.getElementById('form-container').classList.remove('hidden');
+          document.getElementById('modal-add-supplier-form').classList.remove('hidden');
         }
+
+        // Carica anagrafica fornitori per il modal
+        const { data: sups } = await supabaseClient
+          .from('suppliers')
+          .select('id, name')
+          .order('name');
+        suppliersData = sups || [];
+
+        const sel = document.getElementById('modal-supplier-select');
+        sel.innerHTML = suppliersData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
         await loadItems();
 
-        statusLoading.classList.add('hidden');
-        mainContent.classList.remove('hidden');
+        document.getElementById('status-loading').classList.add('hidden');
+        document.getElementById('main-content').classList.remove('hidden');
       } catch (err) {
         console.error(err);
-        window.location.href = 'index.html';
+        alert('Errore inizializzazione: ' + err.message);
       }
     }
 
     async function loadItems() {
-      // Join con item_suppliers e tabella suppliers
       const { data, error } = await supabaseClient
         .from('items')
         .select(`
           *,
           item_suppliers (
             id,
+            supplier_id,
             supplier_sku,
             price_single,
             price_box,
@@ -227,22 +285,40 @@
         .order('name', { ascending: true });
 
       if (error) {
-        itemsList.innerHTML = `<p class="text-rose-400 p-2">Errore: ${error.message}</p>`;
+        document.getElementById('items-list').innerHTML = `<p class="text-rose-400 p-2">Errore: ${error.message}</p>`;
         return;
       }
 
       itemsData = data || [];
-      itemsCount.textContent = `Articoli registrati: ${itemsData.length}`;
+      applyFilters();
+    }
 
-      if (itemsData.length === 0) {
-        itemsList.innerHTML = '<p class="text-slate-500 text-center py-4">Nessun articolo registrato nel catalogo.</p>';
+    function applyFilters() {
+      const q = (document.getElementById('filter-search')?.value || '').trim().toLowerCase();
+      const cat = document.getElementById('filter-category')?.value || '';
+
+      const filtered = itemsData.filter(item => {
+        const matchesName = !q || item.name.toLowerCase().includes(q);
+        const matchesSku = !q || (item.item_suppliers || []).some(s => (s.supplier_sku || '').toLowerCase().includes(q));
+        const matchesCategory = !cat || item.category === cat;
+        return (matchesName || matchesSku) && matchesCategory;
+      });
+
+      const countEl = document.getElementById('items-count');
+      if (q || cat) {
+        countEl.textContent = `Trovati: ${filtered.length} di ${itemsData.length}`;
+      } else {
+        countEl.textContent = `Articoli registrati: ${itemsData.length}`;
+      }
+
+      const listContainer = document.getElementById('items-list');
+      if (filtered.length === 0) {
+        listContainer.innerHTML = '<p class="text-slate-500 text-center py-6">Nessun articolo corrisponde ai filtri impostati.</p>';
         return;
       }
 
-      itemsList.innerHTML = itemsData.map(item => {
-        const formatLabel = item.format_value ? `${item.format_value} ${item.format_unit}` : '';
-        
-        // Calcolo del fornitore più economico
+      listContainer.innerHTML = filtered.map(item => {
+        const formatLabel = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
         const suppliers = item.item_suppliers || [];
         const validSuppliers = suppliers.filter(s => s.price_single && Number(s.price_single) > 0);
         let bestPriceBadge = '';
@@ -253,122 +329,181 @@
           );
           const supName = best.suppliers?.name || 'Fornitore';
           const priceFormatted = Number(best.price_single).toFixed(2) + ' €';
-          const extra = validSuppliers.length > 1 ? ` <span class="text-[9px] text-slate-400">(+${validSuppliers.length - 1})</span>` : '';
+          const unitRate = calculateUnitRate(best.price_single, item.format_value, item.format_unit);
+          const extra = validSuppliers.length > 1 ? ` <span class="text-[9px] text-slate-400">(+${validSuppliers.length - 1} altri)</span>` : '';
 
           bestPriceBadge = `
-            <button onclick="openSupplierModal('${item.id}')" class="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition text-[11px]">
+            <button onclick="openSupplierModal('${item.id}')" class="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition text-xs">
               <span class="font-bold font-mono">${priceFormatted}</span>
+              ${unitRate ? `<span class="text-emerald-400/80 font-mono text-[10px]">(${unitRate})</span>` : ''}
               <span class="text-[10px] text-slate-300">• ${supName}</span>
               ${extra}
             </button>
           `;
         } else {
           bestPriceBadge = `
-            <span class="mt-1 inline-block text-[10px] text-slate-500 italic">Nessun prezzo inserito</span>
+            <button onclick="openSupplierModal('${item.id}')" class="mt-1.5 inline-block text-[10px] text-slate-500 hover:text-slate-300 italic">
+              + Aggiungi listino fornitore
+            </button>
           `;
         }
 
         return `
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between gap-2">
-          <div class="truncate">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
-              ${formatLabel ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono font-bold rounded border border-amber-500/20">${formatLabel}</span>` : ''}
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${item.category}</span>
+          <div class="p-3.5 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-between gap-2 shadow-sm">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
+                ${formatLabel ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono font-bold rounded border border-amber-500/20">${formatLabel}</span>` : ''}
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">${item.category}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">
+                Scorta Min: <span class="text-amber-400 font-mono font-bold">${item.min_stock}</span> • 
+                Obiettivo: <span class="text-emerald-400 font-mono font-bold">${item.target_stock}</span> ${item.unit_type}
+                ${item.units_per_pack > 1 ? `(${item.units_per_pack}/cassa)` : ''}
+              </p>
+              <div>${bestPriceBadge}</div>
             </div>
-            <p class="text-[11px] text-slate-400 mt-1">
-              Scorta Min: <span class="text-amber-400 font-mono font-bold">${item.min_stock}</span> • 
-              Obiettivo: <span class="text-emerald-400 font-mono font-bold">${item.target_stock}</span> ${item.unit_type}
-              ${item.units_per_pack > 1 ? `(${item.units_per_pack}/cassa)` : ''}
-            </p>
-            <div>${bestPriceBadge}</div>
-          </div>
 
-          ${isUserAdmin ? `
-            <div class="flex items-center gap-1 shrink-0">
-              <button onclick="startEdit('${item.id}')" class="px-2 py-1 rounded bg-slate-800 text-amber-400 border border-slate-700 hover:bg-slate-700">Modifica</button>
-              <button onclick="deleteItem('${item.id}', '${item.name.replace(/'/g, "\\'")}')" class="px-2 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20">Elimina</button>
-            </div>
-          ` : ''}
-        </div>
-      `}).join('');
+            ${isUserAdmin ? `
+              <div class="flex items-center gap-1 shrink-0">
+                <button onclick="startEdit('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 text-amber-400 border border-slate-600 hover:bg-slate-600 text-xs font-semibold transition">Modifica</button>
+                <button onclick="deleteItem('${item.id}', '${item.name.replace(/'/g, "\\'")}')" class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 text-xs font-semibold transition">Elimina</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
     }
 
-    function openSupplierModal(id) {
-      const item = itemsData.find(i => i.id === id);
+    // Modal Listini Fornitori
+    function openSupplierModal(itemId) {
+      activeModalItemId = itemId;
+      const item = itemsData.find(i => i.id === itemId);
       if (!item) return;
 
-      modalItemName.textContent = item.name;
-      modalItemDesc.textContent = `${item.format_value ? item.format_value + ' ' + item.format_unit : ''} • Cassa da ${item.units_per_pack || 1} pz`;
+      document.getElementById('modal-item-name').textContent = item.name;
+      const unitRateHeader = item.format_value ? `Formato: ${item.format_value} ${item.format_unit || ''}` : '';
+      document.getElementById('modal-item-format').textContent = unitRateHeader;
 
-      const list = item.item_suppliers || [];
-      if (list.length === 0) {
-        modalSupplierList.innerHTML = `<p class="text-slate-500 text-center py-3">Nessun listino registrato.</p>`;
+      const listContainer = document.getElementById('modal-suppliers-list');
+      const sups = item.item_suppliers || [];
+
+      if (sups.length === 0) {
+        listContainer.innerHTML = '<p class="text-slate-500 text-center py-4">Nessun fornitore associato a questo articolo.</p>';
       } else {
-        const sorted = [...list].sort((a, b) => (Number(a.price_single) || 999) - (Number(b.price_single) || 999));
-        modalSupplierList.innerHTML = sorted.map((s, idx) => {
-          const isLowest = idx === 0 && Number(s.price_single) > 0;
+        listContainer.innerHTML = sups.map(s => {
+          const supName = s.suppliers?.name || 'Fornitore';
+          const unitRate = calculateUnitRate(s.price_single, item.format_value, item.format_unit);
           return `
-            <div class="p-2.5 rounded-lg border ${isLowest ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-slate-900 border-slate-700'} flex items-center justify-between">
+            <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-between">
               <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-bold text-slate-200">${s.suppliers?.name || 'Fornitore'}</span>
-                  ${isLowest ? '<span class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-bold">MIGLIOR PREZZO</span>' : ''}
-                </div>
-                <div class="text-[10px] text-slate-400 mt-0.5">
-                  ${s.supplier_sku ? `SKU: <span class="font-mono text-slate-300">${s.supplier_sku}</span>` : ''}
+                <div class="font-bold text-slate-200">${supName}</div>
+                <div class="text-[10px] text-slate-400">
+                  ${s.supplier_sku ? `Cod: <span class="font-mono text-amber-300">${s.supplier_sku}</span> • ` : ''}
+                  Cassa: <span class="font-mono">${s.price_box ? Number(s.price_box).toFixed(2) + ' €' : '-'}</span>
                 </div>
               </div>
               <div class="text-right">
-                <div class="font-mono font-bold text-amber-400 text-sm">
-                  ${s.price_single ? Number(s.price_single).toFixed(2) + ' €' : '-'}
-                  <span class="text-[10px] font-normal text-slate-400">/ btg</span>
+                <div class="font-bold font-mono text-emerald-400 text-xs">
+                  ${s.price_single ? Number(s.price_single).toFixed(2) + ' €/btg' : '-'}
                 </div>
-                ${s.price_box ? `<div class="text-[10px] text-slate-400 font-mono">Cassa: ${Number(s.price_box).toFixed(2)} €</div>` : ''}
+                ${unitRate ? `<div class="font-mono text-[10px] text-emerald-300/80">(${unitRate})</div>` : ''}
               </div>
             </div>
           `;
         }).join('');
       }
 
-      supplierModal.classList.remove('hidden');
-      supplierModal.classList.add('flex');
+      document.getElementById('supplier-modal').classList.remove('hidden');
+      document.getElementById('supplier-modal').classList.add('flex');
     }
 
     function closeSupplierModal() {
-      supplierModal.classList.add('hidden');
-      supplierModal.classList.remove('flex');
+      const m = document.getElementById('supplier-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+      activeModalItemId = null;
     }
 
-    formItem.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      btnSubmit.disabled = true;
-      btnSubmit.textContent = 'Salvataggio...';
+    async function saveSupplierPrice() {
+      if (!activeModalItemId) return;
+      const supplierId = document.getElementById('modal-supplier-select').value;
+      const sku = document.getElementById('modal-sku').value.trim();
+      const priceSingle = parseFloat(document.getElementById('modal-price-single').value) || null;
+      const priceBox = parseFloat(document.getElementById('modal-price-box').value) || null;
+
+      if (!supplierId) {
+        alert('Seleziona un fornitore');
+        return;
+      }
 
       const payload = {
-        name: inputName.value.trim(),
-        category: inputCategory.value,
-        unit_type: inputUnit.value,
-        format_value: inputFormatVal.value ? parseFloat(inputFormatVal.value) : null,
-        format_unit: inputFormatUnit.value,
-        units_per_pack: parseInt(inputPack.value, 10) || 1,
-        min_stock: parseInt(inputMin.value, 10) || 0,
-        target_stock: parseInt(inputTarget.value, 10) || 0
+        item_id: activeModalItemId,
+        supplier_id: supplierId,
+        supplier_sku: sku || null,
+        price_single: priceSingle,
+        price_box: priceBox,
+        vat_rate: 22.00,
+        is_preferred: true
       };
 
-      const id = itemId.value;
-      const res = id 
-        ? await supabaseClient.from('items').update(payload).eq('id', id)
-        : await supabaseClient.from('items').insert([payload]);
+      const { error } = await supabaseClient
+        .from('item_suppliers')
+        .upsert(payload, { onConflict: 'item_id, supplier_id' });
 
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = id ? 'Aggiorna Articolo' : 'Salva Articolo';
+      if (error) {
+        alert('Errore salvataggio listino: ' + error.message);
+        return;
+      }
 
-      if (res.error) {
-        alert('Errore salvataggio: ' + res.error.message);
+      // Reset campi form modal
+      document.getElementById('modal-sku').value = '';
+      document.getElementById('modal-price-single').value = '';
+      document.getElementById('modal-price-box').value = '';
+
+      await loadItems();
+      openSupplierModal(activeModalItemId);
+    }
+
+    // Gestione Form Inserimento / Modifica Articolo
+    document.getElementById('item-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('item-id').value;
+      const name = document.getElementById('name').value.trim();
+      const category = document.getElementById('category').value;
+      const unitType = document.getElementById('unit-type').value;
+      const formatValue = parseFloat(document.getElementById('format-value').value) || null;
+      const formatUnit = document.getElementById('format-unit').value;
+      const unitsPerPack = parseInt(document.getElementById('units-per-pack').value) || 1;
+      const minStock = parseInt(document.getElementById('min-stock').value) || 0;
+      const targetStock = parseInt(document.getElementById('target-stock').value) || 0;
+
+      const payload = {
+        name,
+        category,
+        unit_type: unitType,
+        format_value: formatValue,
+        format_unit: formatUnit,
+        units_per_pack: unitsPerPack,
+        min_stock: minStock,
+        target_stock: targetStock,
+        is_active: true
+      };
+
+      let error;
+      if (id) {
+        const res = await supabaseClient.from('items').update(payload).eq('id', id);
+        error = res.error;
+      } else {
+        const res = await supabaseClient.from('items').insert([payload]);
+        error = res.error;
+      }
+
+      if (error) {
+        alert('Errore salvataggio articolo: ' + error.message);
       } else {
         resetForm();
-        loadItems();
+        await loadItems();
       }
     });
 
@@ -376,46 +511,53 @@
       const item = itemsData.find(i => i.id === id);
       if (!item) return;
 
-      itemId.value = item.id;
-      inputName.value = item.name;
-      inputCategory.value = item.category;
-      inputUnit.value = item.unit_type;
-      inputFormatVal.value = item.format_value || '';
-      inputFormatUnit.value = item.format_unit || 'cl';
-      inputPack.value = item.units_per_pack || 1;
-      inputMin.value = item.min_stock;
-      inputTarget.value = item.target_stock || 0;
+      document.getElementById('item-id').value = item.id;
+      document.getElementById('name').value = item.name;
+      document.getElementById('category').value = item.category;
+      document.getElementById('unit-type').value = item.unit_type;
+      document.getElementById('format-value').value = item.format_value || '';
+      document.getElementById('format-unit').value = item.format_unit || 'cl';
+      document.getElementById('units-per-pack').value = item.units_per_pack || 1;
+      document.getElementById('min-stock').value = item.min_stock || 0;
+      document.getElementById('target-stock').value = item.target_stock || 0;
 
-      formTitle.textContent = 'Modifica Articolo';
-      btnSubmit.textContent = 'Aggiorna Articolo';
-      btnCancelEdit.classList.remove('hidden');
-      formItem.scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('form-title').textContent = 'Modifica Articolo';
+      document.getElementById('btn-cancel').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function resetForm() {
-      itemId.value = '';
-      formItem.reset();
-      formTitle.textContent = '+ Nuovo Articolo';
-      btnSubmit.textContent = 'Salva Articolo';
-      btnCancelEdit.classList.add('hidden');
+      document.getElementById('item-id').value = '';
+      document.getElementById('item-form').reset();
+      document.getElementById('units-per-pack').value = '1';
+      document.getElementById('min-stock').value = '2';
+      document.getElementById('target-stock').value = '6';
+      document.getElementById('form-title').textContent = 'Aggiungi Nuovo Articolo';
+      document.getElementById('btn-cancel').classList.add('hidden');
     }
 
     async function deleteItem(id, name) {
-      if (!confirm(`Sei sicuro di voler eliminare definitivamente "${name}"?`)) return;
+      if (!confirm(`Sei sicuro di voler eliminare l'articolo "${name}"? Verranno rimossi anche i relativi listini fornitore.`)) {
+        return;
+      }
+
       const { error } = await supabaseClient.from('items').delete().eq('id', id);
       if (error) {
         alert('Errore eliminazione: ' + error.message);
       } else {
-        loadItems();
+        await loadItems();
       }
     }
 
-    btnCancelEdit.addEventListener('click', resetForm);
-    document.getElementById('btn-refresh').addEventListener('click', loadItems);
-    window.startEdit = startEdit;
-    window.deleteItem = deleteItem;
+    // Registrazione globale su window
+    window.loadItems = loadItems;
+    window.applyFilters = applyFilters;
     window.openSupplierModal = openSupplierModal;
     window.closeSupplierModal = closeSupplierModal;
+    window.saveSupplierPrice = saveSupplierPrice;
+    window.startEdit = startEdit;
+    window.resetForm = resetForm;
+    window.deleteItem = deleteItem;
 
     init();
   </script>
