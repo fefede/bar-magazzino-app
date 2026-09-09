@@ -56,7 +56,12 @@
     <!-- SEZIONE SPOT -->
     <div id="section-spot" class="hidden space-y-3">
       <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
-        <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
+        <div class="flex items-center justify-between">
+          <label class="text-xs text-slate-400">Cerca articolo da ordinare:</label>
+          <button onclick="clearSpotDraft()" id="btn-clear-draft" class="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition hidden">
+            <span>🗑</span> Svuota bozza
+          </button>
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <input type="text" id="spot-search" oninput="filterSpotItems()" placeholder="Es. Campari, Coca-Cola..." class="sm:col-span-2 w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
           <select id="spot-category-filter" onchange="filterSpotItems()" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-amber-300 focus:outline-none focus:border-amber-400">
@@ -65,13 +70,20 @@
         </div>
         <div id="spot-search-results" class="max-h-56 overflow-y-auto space-y-1 pt-1 hidden"></div>
       </div>
+
+      <!-- Barra informativa stato bozza -->
+      <div id="spot-draft-status" class="text-[11px] text-slate-400 px-1 flex items-center justify-between">
+        <span id="spot-draft-indicator">💾 Autosalvataggio bozza attivo</span>
+        <span id="spot-items-count" class="font-mono text-amber-400">0 articoli</span>
+      </div>
+
       <div id="spot-cart-container" class="space-y-2.5">
         <p class="text-slate-500 text-xs text-center py-6">Nessun articolo aggiunto all'ordine spot.</p>
       </div>
     </div>
   </div>
 
-  <!-- BARRA FISSA -->
+  <!-- BARRA FISSA INFERIORE -->
   <div id="bottom-bar" class="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur border-t border-slate-700 p-3 flex items-center justify-between max-w-lg mx-auto z-40">
     <div>
       <div class="text-[11px] text-slate-400">Totale stimato (<span id="cart-count">0</span> art.):</div>
@@ -117,13 +129,18 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    let currentUserId = null;
     let allItems = [];
     let suppliers = [];
     let checklists = [];
     let categories = [];
     let currentTab = 'checklist';
     let selectedSupplierId = '';
+    
+    // Struttura mappa carrello: itemId => { item, packs, units, sortOrder, isDismissed }
     let orderCart = new Map();
+    let currentMaxSortOrder = 0;
+    let saveTimeoutMap = new Map();
 
     const DEFAULT_CATEGORIES = [
       { id: 'Alcolici', label: 'Alcolici' },
@@ -143,6 +160,7 @@
       if (u.includes('lattina')) return 'lat';
       if (u.includes('brick')) return 'brick';
       if (u.includes('fusto')) return 'fusto';
+      if (u.includes('confezione')) return 'conf';
       if (u.includes('sacchetto')) return 'sacc';
       return 'pz';
     }
@@ -159,7 +177,7 @@
       if (unit === 'cl') {
         rate = (p * 100) / val;
         label = '€/L';
-      } else if (unit === 'l' || unit === 'lt' || unit === 'litri') {
+      } else if (unit === 'lt' || unit === 'l' || unit === 'litri') {
         rate = p / val;
         label = '€/L';
       } else if (unit === 'ml') {
@@ -168,7 +186,7 @@
       } else if (unit === 'kg') {
         rate = p / val;
         label = '€/kg';
-      } else if (unit === 'g' || unit === 'gr') {
+      } else if (unit === 'gr' || unit === 'g') {
         rate = (p * 1000) / val;
         label = '€/kg';
       }
@@ -181,10 +199,12 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) { window.location.href = 'index.html'; return; }
 
+        currentUserId = session.user.id;
+
         const { data: profile } = await supabaseClient
           .from('profiles')
           .select('is_approved')
-          .eq('id', session.user.id)
+          .eq('id', currentUserId)
           .single();
 
         if (!profile || !profile.is_approved) {
@@ -193,7 +213,7 @@
           return;
         }
 
-        // Caricamento categorie da DB con fallback
+        // 1. Carica categorie per filtro
         try {
           const { data: catData } = await supabaseClient
             .from('item_categories')
@@ -208,6 +228,7 @@
         spotCatSel.innerHTML = '<option value="">Tutte le cat.</option>' + 
           categories.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
+        // 2. Carica Fornitori
         const { data: supData, error: supErr } = await supabaseClient
           .from('suppliers')
           .select('id, name')
@@ -215,6 +236,7 @@
         if (supErr) throw supErr;
         suppliers = supData || [];
 
+        // 3. Carica Articoli con relativi listini
         const { data: itemsData, error: itemsErr } = await supabaseClient
           .from('items')
           .select(`
@@ -244,6 +266,7 @@
         if (itemsErr) throw itemsErr;
         allItems = itemsData || [];
 
+        // 4. Carica Template Checklist
         const { data: chkData } = await supabaseClient
           .from('checklists')
           .select('*')
@@ -254,6 +277,9 @@
 
         populateSupplierSelector();
         populateChecklistSelector();
+
+        // 5. Ripristina l'eventuale bozza Spot personale dal DB
+        await loadSpotDraftFromDB();
 
         document.getElementById('status-loading').classList.add('hidden');
         switchTab('checklist');
@@ -357,7 +383,7 @@
       }
 
       container.innerHTML = targetItems.map(item => {
-        const cartEntry = orderCart.get(item.id) || { item, packs: 0, units: 0, isDismissed: false };
+        const cartEntry = orderCart.get(item.id) || { item, packs: 0, units: 0, sortOrder: 0, isDismissed: false };
         if (cartEntry.isDismissed) return '';
 
         const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
@@ -389,10 +415,8 @@
               </button>
             </div>
 
-            <!-- CONTROLLI QUANTITÀ CON SUFFISSI DINAMICI -->
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-2">
-                <!-- Cartoni -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-400 block mb-1">📦 Cartoni / Casse</span>
                   <div class="flex items-center justify-between px-1">
@@ -402,7 +426,6 @@
                   </div>
                 </div>
 
-                <!-- Unità Sfuse -->
                 <div class="bg-slate-800 p-2 rounded-lg border border-slate-700/80 text-center">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-sky-400 block mb-1">Pezzi Sfusi (${uSuffix})</span>
                   <div class="flex items-center justify-between px-1">
@@ -413,7 +436,6 @@
                 </div>
               </div>
 
-              <!-- Riepilogo Calcolato -->
               <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-xs">
                 <div class="text-slate-300">
                   Totale pezzi: <span class="font-bold text-emerald-400 font-mono text-sm" id="total-units-${item.id}">${totalUnits}</span> ${uSuffix}
@@ -428,7 +450,7 @@
 
     function dismissChecklistItem(itemId) {
       const item = allItems.find(i => i.id === itemId);
-      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0 };
+      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: 0 };
       entry.isDismissed = true;
       entry.packs = 0;
       entry.units = 0;
@@ -438,11 +460,102 @@
       updateCartTotals();
     }
 
+    // ==========================================
+    // GESTIONE BOZZA PERSISTENTE CON PROGRESSIVO
+    // ==========================================
+
+    async function loadSpotDraftFromDB() {
+      if (!currentUserId) return;
+      try {
+        const { data: drafts, error } = await supabaseClient
+          .from('order_drafts')
+          .select('item_id, boxes, singles, sort_order')
+          .eq('user_id', currentUserId)
+          .eq('order_type', 'spot')
+          .order('sort_order', { ascending: true });
+
+        if (error) {
+          console.warn('Errore lettura bozza order_drafts:', error);
+          return;
+        }
+
+        if (drafts && drafts.length > 0) {
+          drafts.forEach(d => {
+            const item = allItems.find(i => i.id === d.item_id);
+            if (item) {
+              const sortOrd = d.sort_order || 0;
+              if (sortOrd > currentMaxSortOrder) currentMaxSortOrder = sortOrd;
+              orderCart.set(item.id, {
+                item,
+                packs: d.boxes || 0,
+                units: d.singles || 0,
+                sortOrder: sortOrd,
+                isDismissed: false
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Eccezione ripristino bozza:', e);
+      }
+    }
+
+    function scheduleDraftSave(itemId) {
+      if (saveTimeoutMap.has(itemId)) {
+        clearTimeout(saveTimeoutMap.get(itemId));
+      }
+
+      const timer = setTimeout(async () => {
+        saveTimeoutMap.delete(itemId);
+        await persistDraftItem(itemId);
+      }, 350);
+
+      saveTimeoutMap.set(itemId, timer);
+    }
+
+    async function persistDraftItem(itemId) {
+      if (!currentUserId) return;
+      const entry = orderCart.get(itemId);
+      if (!entry) return;
+
+      const indicator = document.getElementById('spot-draft-indicator');
+      if (indicator) indicator.textContent = '⏳ Salvataggio...';
+
+      try {
+        if (entry.isDismissed || (entry.packs === 0 && entry.units === 0)) {
+          await supabaseClient
+            .from('order_drafts')
+            .delete()
+            .eq('user_id', currentUserId)
+            .eq('order_type', 'spot')
+            .eq('item_id', itemId);
+        } else {
+          await supabaseClient
+            .from('order_drafts')
+            .upsert({
+              user_id: currentUserId,
+              order_type: 'spot',
+              item_id: itemId,
+              boxes: entry.packs,
+              singles: entry.units,
+              sort_order: entry.sortOrder,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id, order_type, item_id'
+            });
+        }
+        if (indicator) indicator.textContent = '💾 Bozza salvata su cloud';
+      } catch (err) {
+        console.error('Errore persistenza riga bozza:', err);
+        if (indicator) indicator.textContent = '⚠️ Errore salvataggio';
+      }
+    }
+
     function changeQty(itemId, type, delta) {
       const item = allItems.find(i => i.id === itemId);
       if (!item) return;
 
-      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0, isDismissed: false };
+      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0, sortOrder: ++currentMaxSortOrder, isDismissed: false };
       entry.isDismissed = false;
 
       if (type === 'packs') {
@@ -463,6 +576,7 @@
       if (uEl) uEl.textContent = entry.units;
       if (totEl) totEl.textContent = totalPieces;
 
+      scheduleDraftSave(itemId);
       updateCartTotals();
       if (currentTab === 'spot') renderSpotCart();
     }
@@ -508,7 +622,7 @@
                 <div class="text-[10px] text-slate-400 mt-0.5">
                   ${supInfo.hasPrice 
                     ? `<span class="text-emerald-400 font-mono font-medium">${supInfo.priceSingle.toFixed(2)} €/${uSuffix}</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono">(${unitRate})</span>` : ''}` 
-                    : 'Senza prezzo'} 
+                    : '<span class="text-slate-500 italic">Senza prezzo</span>'} 
                   ${supInfo.sku ? `• Cod: ${supInfo.sku}` : ''}
                 </div>
               </div>
@@ -524,9 +638,19 @@
       const item = allItems.find(i => i.id === itemId);
       if (!item) return;
 
-      const entry = orderCart.get(itemId) || { item, packs: 0, units: 0, isDismissed: false };
-      entry.isDismissed = false;
-      entry.packs = (entry.packs || 0) + 1;
+      let entry = orderCart.get(itemId);
+      if (!entry) {
+        currentMaxSortOrder += 1;
+        entry = { item, packs: 1, units: 0, sortOrder: currentMaxSortOrder, isDismissed: false };
+      } else {
+        entry.isDismissed = false;
+        entry.packs = (entry.packs || 0) + 1;
+        if (!entry.sortOrder) {
+          currentMaxSortOrder += 1;
+          entry.sortOrder = currentMaxSortOrder;
+        }
+      }
+
       orderCart.set(itemId, entry);
 
       const input = document.getElementById('spot-search');
@@ -537,24 +661,79 @@
         resContainer.classList.add('hidden');
       }
 
+      scheduleDraftSave(itemId);
       renderSpotCart();
       updateCartTotals();
     }
 
-    function removeSpotItem(itemId) {
+    async function removeSpotItem(itemId) {
+      const entry = orderCart.get(itemId);
+      if (entry) {
+        entry.packs = 0;
+        entry.units = 0;
+        entry.isDismissed = true;
+      }
       orderCart.delete(itemId);
+
+      if (currentUserId) {
+        try {
+          await supabaseClient
+            .from('order_drafts')
+            .delete()
+            .eq('user_id', currentUserId)
+            .eq('order_type', 'spot')
+            .eq('item_id', itemId);
+        } catch (e) {
+          console.warn('Errore cancellazione DB riga:', e);
+        }
+      }
+
+      renderSpotCart();
+      updateCartTotals();
+    }
+
+    async function clearSpotDraft() {
+      if (!confirm('Vuoi svuotare tutti gli articoli presenti in questa bozza spot?')) return;
+
+      const activeIds = Array.from(orderCart.keys());
+      activeIds.forEach(id => orderCart.delete(id));
+      currentMaxSortOrder = 0;
+
+      if (currentUserId) {
+        try {
+          await supabaseClient
+            .from('order_drafts')
+            .delete()
+            .eq('user_id', currentUserId)
+            .eq('order_type', 'spot');
+        } catch (e) {
+          console.error('Errore reset tabella bozza:', e);
+        }
+      }
+
       renderSpotCart();
       updateCartTotals();
     }
 
     function renderSpotCart() {
       const container = document.getElementById('spot-cart-container');
-      const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
+      const clearBtn = document.getElementById('btn-clear-draft');
+      const countEl = document.getElementById('spot-items-count');
+
+      // Ordina rigidamente in base a sortOrder (progressivo di inserimento)
+      const activeEntries = Array.from(orderCart.values())
+        .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+      if (countEl) countEl.textContent = `${activeEntries.length} articoli in bozza`;
 
       if (activeEntries.length === 0) {
+        if (clearBtn) clearBtn.classList.add('hidden');
         container.innerHTML = '<p class="text-slate-500 text-xs text-center py-8">Nessun articolo aggiunto all\'ordine spot.<br><span class="text-[11px] text-slate-600">Cerca un prodotto qui sopra per aggiungerlo.</span></p>';
         return;
       }
+
+      if (clearBtn) clearBtn.classList.remove('hidden');
 
       container.innerHTML = activeEntries.map(e => {
         const item = e.item;
@@ -570,15 +749,19 @@
           <div class="p-3.5 bg-slate-800 rounded-xl border border-slate-700 flex flex-col gap-3 shadow-sm">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
-                <div class="font-bold text-slate-200 text-sm truncate">${item.name}</div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-bold text-slate-200 text-sm truncate">${item.name}</span>
+                  ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
+                  <span class="text-[9px] px-1 rounded bg-slate-900 text-slate-400 border border-slate-700">${item.category}</span>
+                </div>
                 <div class="text-[11px] text-slate-400 mt-0.5">
-                  ${format ? `${format} • ` : ''}Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
+                  Scatola da: <span class="text-slate-200 font-semibold">${packSize} pz</span>
                   ${supInfo.hasPrice 
                     ? `• <span class="text-emerald-400 font-mono">${supInfo.priceSingle.toFixed(2)} €/${uSuffix}</span> ${unitRate ? `<span class="text-emerald-300/80 font-mono text-[10px]">(${unitRate})</span>` : ''}` 
                     : `• <span class="text-slate-500 italic">prezzo non disp.</span>`}
                 </div>
               </div>
-              <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0">✕</button>
+              <button onclick="removeSpotItem('${item.id}')" title="Rimuovi" class="text-slate-500 hover:text-rose-400 p-1 text-sm leading-none shrink-0 transition">✕</button>
             </div>
 
             <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/80 flex flex-col gap-2">
@@ -635,7 +818,9 @@
     }
 
     function openSummaryModal() {
-      const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
+      const activeEntries = Array.from(orderCart.values())
+        .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
       if (activeEntries.length === 0) {
         alert('Nessun articolo selezionato con quantità maggiore di zero.');
@@ -688,7 +873,10 @@
     }
 
     function copyToClipboard() {
-      const activeEntries = Array.from(orderCart.values()).filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0));
+      const activeEntries = Array.from(orderCart.values())
+        .filter(e => !e.isDismissed && (e.packs > 0 || e.units > 0))
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       const supName = curSup ? curSup.name : 'Fornitore';
 
@@ -723,8 +911,29 @@
 
     async function confirmOrder() {
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
+      
+      // Svuota la bozza temporanea su DB dato che l'ordine è stato finalizzato
+      if (currentUserId) {
+        try {
+          await supabaseClient
+            .from('order_drafts')
+            .delete()
+            .eq('user_id', currentUserId)
+            .eq('order_type', 'spot');
+        } catch (e) {
+          console.warn('Errore cancellazione bozza post-conferma:', e);
+        }
+      }
+
       alert(`Ordine per ${curSup?.name || 'Fornitore'} verificato con successo!`);
       closeSummaryModal();
+      
+      // Svuota anche il carrello in memoria e ricarica
+      orderCart.clear();
+      currentMaxSortOrder = 0;
+      if (currentTab === 'spot') renderSpotCart();
+      else loadChecklistItems();
+      updateCartTotals();
     }
 
     window.switchTab = switchTab;
@@ -735,6 +944,7 @@
     window.filterSpotItems = filterSpotItems;
     window.addSpotItem = addSpotItem;
     window.removeSpotItem = removeSpotItem;
+    window.clearSpotDraft = clearSpotDraft;
     window.openSummaryModal = openSummaryModal;
     window.closeSummaryModal = closeSummaryModal;
     window.copyToClipboard = copyToClipboard;
