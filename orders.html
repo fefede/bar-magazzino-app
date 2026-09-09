@@ -1293,7 +1293,8 @@ function openSummaryModal() {
       const curSup = suppliers.find(s => s.id === selectedSupplierId);
       const supName = curSup ? curSup.name : 'Fornitore';
 
-      let text = `ORDINE: ${supName.toUpperCase()}\n\n`;
+      //let text = `ORDINE: ${supName.toUpperCase()}\n\n`;
+      let text = `Ciao, vorrei fare il seguente ordine:\n\n`;
 
       activeEntries.forEach(e => {
         const item = e.item;
@@ -1327,7 +1328,8 @@ function openSummaryModal() {
       });
 
       const total = document.getElementById('summary-total-net').textContent;
-      text += `\nTotale stimato: ${total}`;
+      // text += `\nTotale stimato: ${total}`;
+      text += `\nFammi avere un riscontro, grazie.`;
 
       navigator.clipboard.writeText(text).then(() => {
         alert(`✓ Elenco per ${supName} copiato negli appunti!\nPuoi incollarlo su WhatsApp.`);
