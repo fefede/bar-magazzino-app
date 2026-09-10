@@ -1,1 +1,507 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gestione Liste di Controllo - Bar Magazzino</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-start p-3 pb-24">
 
+  <div class="w-full max-w-lg space-y-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+      <div>
+        <h1 class="text-lg font-bold text-amber-400">Gestione Liste di Controllo</h1>
+        <p class="text-[11px] text-slate-400">Configura template, sequenza scaffali e articoli</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="orders.html" class="text-xs text-amber-400 hover:text-amber-300 py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-amber-500/30 transition">📋 Ordini</a>
+        <a href="index.html" class="text-xs text-slate-300 hover:text-white py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">← Home</a>
+      </div>
+    </div>
+
+    <!-- SELETTORE TEMPLATE & AZIONI RAPIDE -->
+    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-3 shadow-sm">
+      <div class="flex items-center justify-between">
+        <label class="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Seleziona Lista / Template</label>
+        <button onclick="openNewChecklistModal()" class="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
+          <span>+</span> Nuova Lista
+        </button>
+      </div>
+      <select id="checklist-selector" onchange="onChecklistChange()" class="w-full p-2 bg-slate-900 border border-slate-700 text-xs font-semibold rounded-lg text-slate-100 focus:outline-none focus:border-amber-400"></select>
+
+      <!-- Azioni sul Template corrente -->
+      <div id="checklist-actions-bar" class="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/60 hidden">
+        <button onclick="openRenameModal()" class="py-1.5 px-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium rounded-lg transition active:scale-95 text-center">
+          ✏️ Rinomina
+        </button>
+        <button onclick="cloneCurrentChecklist()" class="py-1.5 px-2 bg-slate-700 hover:bg-slate-600 text-amber-300 text-xs font-medium rounded-lg transition active:scale-95 text-center">
+          📋 Clona / Copia
+        </button>
+        <button onclick="deleteCurrentChecklist()" class="py-1.5 px-2 bg-rose-950/80 hover:bg-rose-900 text-rose-300 text-xs font-medium rounded-lg transition active:scale-95 text-center border border-rose-800/40">
+          🗑 Elimina
+        </button>
+      </div>
+    </div>
+
+    <!-- LOADER -->
+    <div id="status-loading" class="py-12 text-center text-sm text-slate-400">
+      <div class="inline-block w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2"></div>
+      <p>Caricamento template...</p>
+    </div>
+
+    <!-- CONTENUTO LISTA ATTIVA -->
+    <div id="checklist-editor-section" class="hidden space-y-3">
+      
+      <!-- Barra Aggiunta Articoli con Filtri -->
+      <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-300">Aggiungi articolo alla lista:</label>
+          <span id="items-in-list-count" class="text-[11px] text-amber-400 font-mono">0 articoli inseriti</span>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input type="text" id="item-search" oninput="filterCatalogItems()" placeholder="Cerca prodotto..." class="sm:col-span-2 w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          <select id="item-category-filter" onchange="filterCatalogItems()" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-amber-300 focus:outline-none focus:border-amber-400">
+            <option value="">Tutte le cat.</option>
+          </select>
+        </div>
+        <div id="catalog-search-results" class="max-h-48 overflow-y-auto space-y-1 pt-1 hidden"></div>
+      </div>
+
+      <!-- Elenco Articoli Ordinati nella Lista -->
+      <div class="space-y-2">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1 flex items-center justify-between">
+          <span>Sequenza Scaffali / Articoli</span>
+          <span class="text-[10px] text-slate-500">Usa le frecce per ordinare</span>
+        </div>
+        <div id="checklist-items-container" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL NUOVA LISTA / CLONA -->
+  <div id="modal-new-checklist" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4">
+    <div class="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl p-5 border border-slate-700 space-y-4">
+      <h3 id="modal-checklist-title" class="font-bold text-amber-400 text-sm">Crea Nuova Lista di Controllo</h3>
+      <div class="space-y-1">
+        <label class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Nome della lista *</label>
+        <input type="text" id="input-checklist-name" placeholder="Es. Frigo Bar Principale..." class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400" />
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeNewChecklistModal()" class="py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold rounded-lg transition">Annulla</button>
+        <button onclick="saveNewChecklist()" class="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition shadow">Crea Lista</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL RINOMINA LISTA -->
+  <div id="modal-rename-checklist" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4">
+    <div class="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl p-5 border border-slate-700 space-y-4">
+      <h3 class="font-bold text-amber-400 text-sm">Rinomina Lista</h3>
+      <div class="space-y-1">
+        <label class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Nuovo nome *</label>
+        <input type="text" id="input-rename-value" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400" />
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeRenameModal()" class="py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold rounded-lg transition">Annulla</button>
+        <button onclick="saveRenameChecklist()" class="py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition shadow">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://wwtzkltjhllbclygwfqr.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_2-ekTNVfaJteH0b4uJ4czQ_KN63kHLv';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUserId = null;
+    let currentUserRole = 'user';
+    let allItems = [];
+    let checklists = [];
+    let categories = [];
+    let selectedChecklistId = null;
+    let currentChecklistItems = []; // Array ordinato di item_id
+
+    const DEFAULT_CATEGORIES = [
+      { id: 'Alcolici', label: 'Alcolici' },
+      { id: 'Analcolici', label: 'Analcolici' },
+      { id: 'Birre', label: 'Birre' },
+      { id: 'Stuzzichini', label: 'Stuzzichini' },
+      { id: 'Vino', label: 'Vino' },
+      { id: 'Caffetteria', label: 'Caffetteria' },
+      { id: 'Consumabili', label: 'Consumabili' },
+      { id: 'Altro', label: 'Altro' }
+    ];
+
+    async function init() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { window.location.href = 'index.html'; return; }
+        currentUserId = session.user.id;
+
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('is_approved, role')
+          .eq('id', currentUserId)
+          .single();
+
+        if (!profile || !profile.is_approved) {
+          alert('Accesso non autorizzato');
+          window.location.href = 'index.html';
+          return;
+        }
+        currentUserRole = profile.role || 'user';
+
+        // 1. Categorie
+        try {
+          const { data: catData } = await supabaseClient.from('item_categories').select('id, label').order('sort_order');
+          categories = (catData && catData.length > 0) ? catData : DEFAULT_CATEGORIES;
+        } catch (e) {
+          categories = DEFAULT_CATEGORIES;
+        }
+
+        const catSel = document.getElementById('item-category-filter');
+        catSel.innerHTML = '<option value="">Tutte le cat.</option>' + categories.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+
+        // 2. Catalogo articoli attivi
+        const { data: itemsData } = await supabaseClient.from('items').select('id, name, category, unit_type, format_value, format_unit').eq('is_active', true).order('name');
+        allItems = itemsData || [];
+
+        // 3. Carica checklist
+        await loadChecklistsList();
+
+        document.getElementById('status-loading').classList.add('hidden');
+        document.getElementById('checklist-editor-section').classList.remove('hidden');
+      } catch (err) {
+        console.error('Errore init:', err);
+        alert('Errore caricamento: ' + err.message);
+      }
+    }
+
+    async function loadChecklistsList() {
+      const { data: chkData } = await supabaseClient.from('checklists').select('*').eq('is_active', true).order('name');
+      checklists = chkData || [];
+      const sel = document.getElementById('checklist-selector');
+      const actionsBar = document.getElementById('checklist-actions-bar');
+
+      if (checklists.length === 0) {
+        sel.innerHTML = '<option value="">Nessuna lista trovata - Creane una</option>';
+        actionsBar.classList.add('hidden');
+        selectedChecklistId = null;
+        document.getElementById('checklist-items-container').innerHTML = '';
+        return;
+      }
+
+      actionsBar.classList.remove('hidden');
+      sel.innerHTML = checklists.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      
+      if (!selectedChecklistId || !checklists.some(c => c.id === selectedChecklistId)) {
+        selectedChecklistId = checklists[0].id;
+      }
+      sel.value = selectedChecklistId;
+
+      await loadItemsForCurrentChecklist();
+    }
+
+    async function onChecklistChange() {
+      selectedChecklistId = document.getElementById('checklist-selector').value;
+      await loadItemsForCurrentChecklist();
+    }
+
+    async function loadItemsForCurrentChecklist() {
+      if (!selectedChecklistId) return;
+
+      const { data: links } = await supabaseClient
+        .from('checklist_items')
+        .select('item_id, sort_order')
+        .eq('checklist_id', selectedChecklistId)
+        .order('sort_order', { ascending: true });
+
+      currentChecklistItems = (links || []).map(l => l.item_id);
+      renderChecklistItems();
+    }
+
+    function renderChecklistItems() {
+      const container = document.getElementById('checklist-items-container');
+      const countEl = document.getElementById('items-in-list-count');
+      if (countEl) countEl.textContent = `${currentChecklistItems.length} articoli inseriti`;
+
+      if (currentChecklistItems.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-xs text-center py-6 bg-slate-800 rounded-xl border border-slate-700">Nessun articolo in questa lista.<br><span class="text-[10px] text-slate-600">Cerca un prodotto qui sopra per aggiungerlo.</span></p>';
+        return;
+      }
+
+      container.innerHTML = currentChecklistItems.map((itemId, index) => {
+        const item = allItems.find(i => i.id === itemId);
+        if (!item) return '';
+
+        const format = item.format_value ? `${item.format_value} ${item.format_unit || ''}` : '';
+
+        return `
+          <div class="p-2.5 bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-between gap-2 shadow-sm">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-xs font-mono text-slate-500 font-bold w-5 text-right shrink-0">${index + 1}.</span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-bold text-slate-200 text-xs truncate">${item.name}</span>
+                  ${format ? `<span class="text-[10px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 font-mono rounded border border-amber-500/20">${format}</span>` : ''}
+                </div>
+                <span class="text-[10px] text-slate-400">${item.category}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-1 shrink-0">
+              <button onclick="moveItem(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="w-7 h-7 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 rounded text-slate-200 text-xs font-bold flex items-center justify-center transition" title="Sposta su">↑</button>
+              <button onclick="moveItem(${index}, 1)" ${index === currentChecklistItems.length - 1 ? 'disabled' : ''} class="w-7 h-7 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 rounded text-slate-200 text-xs font-bold flex items-center justify-center transition" title="Sposta giù">↓</button>
+              <button onclick="removeItemFromChecklist('${itemId}')" class="w-7 h-7 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded text-xs font-bold flex items-center justify-center border border-rose-800/40 transition ml-1" title="Rimuovi">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==========================================
+    // ORDINAMENTO E SALVATAGGIO SEQUENZA
+    // ==========================================
+    async function moveItem(index, direction) {
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= currentChecklistItems.length) return;
+
+      // Scambia elementi in array
+      const temp = currentChecklistItems[index];
+      currentChecklistItems[index] = currentChecklistItems[newIndex];
+      currentChecklistItems[newIndex] = temp;
+
+      renderChecklistItems();
+      await persistChecklistOrder();
+    }
+
+    async function persistChecklistOrder() {
+      try {
+        const upsertRows = currentChecklistItems.map((itemId, idx) => ({
+          checklist_id: selectedChecklistId,
+          item_id: itemId,
+          sort_order: idx + 1
+        }));
+
+        await supabaseClient
+          .from('checklist_items')
+          .upsert(upsertRows, { onConflict: 'checklist_id, item_id' });
+      } catch (err) {
+        console.error('Errore salvataggio ordinamento:', err);
+      }
+    }
+
+    // ==========================================
+    // AGGIUNTA E RIMOZIONE ARTICOLI
+    // ==========================================
+    function filterCatalogItems() {
+      const q = (document.getElementById('item-search').value || '').toLowerCase().trim();
+      const cat = document.getElementById('item-category-filter').value;
+      const resContainer = document.getElementById('catalog-search-results');
+
+      if (!q && !cat) {
+        resContainer.innerHTML = '';
+        resContainer.classList.add('hidden');
+        return;
+      }
+
+      const linkedSet = new Set(currentChecklistItems);
+      const matches = allItems.filter(i => {
+        if (linkedSet.has(i.id)) return false; // Esclude articoli già presenti
+        const matchName = !q || i.name.toLowerCase().includes(q);
+        const matchCat = !cat || i.category === cat;
+        return matchName && matchCat;
+      }).slice(0, 6);
+
+      if (matches.length === 0) {
+        resContainer.innerHTML = '<div class="p-2 text-slate-400 text-xs bg-slate-900 rounded-lg border border-slate-700">Nessun articolo disponibile trovato</div>';
+      } else {
+        resContainer.innerHTML = matches.map(i => {
+          const format = i.format_value ? `${i.format_value} ${i.format_unit || ''}` : '';
+          return `
+            <div onclick="addItemToChecklist('${i.id}')" class="p-2 bg-slate-900 hover:bg-slate-700 rounded-lg cursor-pointer border border-slate-700 flex items-center justify-between transition">
+              <div>
+                <span class="font-semibold text-slate-200 text-xs">${i.name}</span>
+                ${format ? `<span class="text-[10px] text-amber-300 ml-1">(${format})</span>` : ''}
+              </div>
+              <span class="text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">+ Aggiungi</span>
+            </div>
+          `;
+        }).join('');
+      }
+      resContainer.classList.remove('hidden');
+    }
+
+    async function addItemToChecklist(itemId) {
+      if (!selectedChecklistId) return;
+
+      currentChecklistItems.push(itemId);
+      const newSortOrder = currentChecklistItems.length;
+
+      try {
+        await supabaseClient.from('checklist_items').insert({
+          checklist_id: selectedChecklistId,
+          item_id: itemId,
+          sort_order: newSortOrder
+        });
+
+        document.getElementById('item-search').value = '';
+        filterCatalogItems();
+        renderChecklistItems();
+      } catch (err) {
+        alert('Errore aggiunta articolo: ' + err.message);
+      }
+    }
+
+    async function removeItemFromChecklist(itemId) {
+      currentChecklistItems = currentChecklistItems.filter(id => id !== itemId);
+      renderChecklistItems();
+
+      try {
+        await supabaseClient
+          .from('checklist_items')
+          .delete()
+          .eq('checklist_id', selectedChecklistId)
+          .eq('item_id', itemId);
+
+        await persistChecklistOrder();
+      } catch (err) {
+        console.error('Errore rimozione:', err);
+      }
+    }
+
+    // ==========================================
+    // GESTIONE TEMPLATE (CREA, RINOMINA, CLONA, ELIMINA)
+    // ==========================================
+    let isCloningMode = false;
+
+    function openNewChecklistModal() {
+      isCloningMode = false;
+      document.getElementById('modal-checklist-title').textContent = 'Crea Nuova Lista di Controllo';
+      document.getElementById('input-checklist-name').value = '';
+      document.getElementById('modal-new-checklist').classList.remove('hidden');
+      document.getElementById('modal-new-checklist').classList.add('flex');
+      setTimeout(() => document.getElementById('input-checklist-name').focus(), 100);
+    }
+
+    function closeNewChecklistModal() {
+      document.getElementById('modal-new-checklist').classList.add('hidden');
+      document.getElementById('modal-new-checklist').classList.remove('flex');
+    }
+
+    async function saveNewChecklist() {
+      const name = document.getElementById('input-checklist-name').value.trim();
+      if (!name) { alert('Inserisci un nome per la lista.'); return; }
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('checklists')
+          .insert({ name: name, is_active: true })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Se siamo in modalità clonazione, copia anche gli articoli della lista attiva
+        if (isCloningMode && selectedChecklistId && currentChecklistItems.length > 0) {
+          const cloneRows = currentChecklistItems.map((itemId, idx) => ({
+            checklist_id: data.id,
+            item_id: itemId,
+            sort_order: idx + 1
+          }));
+          await supabaseClient.from('checklist_items').insert(cloneRows);
+        }
+
+        closeNewChecklistModal();
+        selectedChecklistId = data.id;
+        await loadChecklistsList();
+      } catch (err) {
+        alert('Errore creazione lista: ' + err.message);
+      }
+    }
+
+    function cloneCurrentChecklist() {
+      const cur = checklists.find(c => c.id === selectedChecklistId);
+      if (!cur) return;
+
+      isCloningMode = true;
+      document.getElementById('modal-checklist-title').textContent = `Clona lista "${cur.name}"`;
+      document.getElementById('input-checklist-name').value = `${cur.name} (Copia)`;
+      document.getElementById('modal-new-checklist').classList.remove('hidden');
+      document.getElementById('modal-new-checklist').classList.add('flex');
+      setTimeout(() => document.getElementById('input-checklist-name').select(), 100);
+    }
+
+    function openRenameModal() {
+      const cur = checklists.find(c => c.id === selectedChecklistId);
+      if (!cur) return;
+      document.getElementById('input-rename-value').value = cur.name;
+      document.getElementById('modal-rename-checklist').classList.remove('hidden');
+      document.getElementById('modal-rename-checklist').classList.add('flex');
+      setTimeout(() => document.getElementById('input-rename-value').select(), 100);
+    }
+
+    function closeRenameModal() {
+      document.getElementById('modal-rename-checklist').classList.add('hidden');
+      document.getElementById('modal-rename-checklist').classList.remove('flex');
+    }
+
+    async function saveRenameChecklist() {
+      const newName = document.getElementById('input-rename-value').value.trim();
+      if (!newName || !selectedChecklistId) return;
+
+      try {
+        await supabaseClient
+          .from('checklists')
+          .update({ name: newName })
+          .eq('id', selectedChecklistId);
+
+        closeRenameModal();
+        await loadChecklistsList();
+      } catch (err) {
+        alert('Errore rinomina: ' + err.message);
+      }
+    }
+
+    async function deleteCurrentChecklist() {
+      const cur = checklists.find(c => c.id === selectedChecklistId);
+      if (!cur) return;
+
+      if (!confirm(`Vuoi davvero eliminare la lista "${cur.name}"?\nL'operazione rimuoverà il template.`)) return;
+
+      try {
+        await supabaseClient
+          .from('checklists')
+          .update({ is_active: false })
+          .eq('id', selectedChecklistId);
+
+        selectedChecklistId = null;
+        await loadChecklistsList();
+        alert('Lista eliminata con successo.');
+      } catch (err) {
+        alert('Errore eliminazione: ' + err.message);
+      }
+    }
+
+    window.onChecklistChange = onChecklistChange;
+    window.moveItem = moveItem;
+    window.removeItemFromChecklist = removeItemFromChecklist;
+    window.filterCatalogItems = filterCatalogItems;
+    window.addItemToChecklist = addItemToChecklist;
+    window.openNewChecklistModal = openNewChecklistModal;
+    window.closeNewChecklistModal = closeNewChecklistModal;
+    window.saveNewChecklist = saveNewChecklist;
+    window.cloneCurrentChecklist = cloneCurrentChecklist;
+    window.openRenameModal = openRenameModal;
+    window.closeRenameModal = closeRenameModal;
+    window.saveRenameChecklist = saveRenameChecklist;
+    window.deleteCurrentChecklist = deleteCurrentChecklist;
+
+    init();
+  </script>
+</body>
+</html>
